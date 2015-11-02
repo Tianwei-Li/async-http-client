@@ -12,19 +12,12 @@
  */
 package org.asynchttpclient.request.body.multipart;
 
+import static org.asynchttpclient.util.Assertions.assertNotNull;
+
 import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class FilePart extends AbstractFilePart {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(FilePart.class);
+public class FilePart extends FileLikePart {
 
     private final File file;
 
@@ -50,8 +43,7 @@ public class FilePart extends AbstractFilePart {
 
     public FilePart(String name, File file, String contentType, Charset charset, String fileName, String contentId, String transferEncoding) {
         super(name, contentType, charset, contentId, transferEncoding);
-        if (file == null)
-            throw new NullPointerException("file");
+        assertNotNull(file, "file");
         if (!file.isFile())
             throw new IllegalArgumentException("File is not a normal file " + file.getAbsolutePath());
         if (!file.canRead())
@@ -59,62 +51,8 @@ public class FilePart extends AbstractFilePart {
         this.file = file;
         setFileName(fileName != null ? fileName : file.getName());
     }
-    
-    @Override
-    protected long getDataLength() {
-        return file.length();
-    }
 
     public File getFile() {
         return file;
-    }
-
-    @Override
-    public long write(WritableByteChannel target, byte[] boundary) throws IOException {
-        FilePartStallHandler handler = new FilePartStallHandler(getStalledTime(), this);
-
-        handler.start();
-
-        int length = 0;
-
-        length += MultipartUtils.writeBytesToChannel(target, generateFileStart(boundary));
-
-        RandomAccessFile raf = new RandomAccessFile(file, "r");
-        FileChannel fc = raf.getChannel();
-
-        long l = file.length();
-        int fileLength = 0;
-        long nWrite = 0;
-        // FIXME why sync?
-        try {
-            synchronized (fc) {
-                while (fileLength != l) {
-                    if (handler.isFailed()) {
-                        LOGGER.debug("Stalled error");
-                        throw new FileUploadStalledException();
-                    }
-                    nWrite = fc.transferTo(fileLength, l, target);
-
-                    if (nWrite == 0) {
-                        LOGGER.info("Waiting for writing...");
-                        try {
-                            fc.wait(50);
-                        } catch (InterruptedException e) {
-                            LOGGER.trace(e.getMessage(), e);
-                        }
-                    } else {
-                        handler.writeHappened();
-                    }
-                    fileLength += nWrite;
-                }
-            }
-        } finally {
-            handler.completed();
-            raf.close();
-        }
-
-        length += MultipartUtils.writeBytesToChannel(target, generateFileEnd());
-
-        return length;
     }
 }

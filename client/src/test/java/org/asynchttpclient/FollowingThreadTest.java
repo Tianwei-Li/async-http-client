@@ -33,7 +33,7 @@ public class FollowingThreadTest extends AbstractBasicTest {
 
     private static final int COUNT = 10;
 
-    @Test(timeOut = 30 * 1000, groups = { "online", "default_provider", "scalability" })
+    @Test(groups = "online", timeOut = 30 * 1000)
     public void testFollowRedirect() throws IOException, ExecutionException, TimeoutException, InterruptedException {
 
         final CountDownLatch countDown = new CountDownLatch(COUNT);
@@ -46,7 +46,7 @@ public class FollowingThreadTest extends AbstractBasicTest {
 
                     public void run() {
                         final CountDownLatch l = new CountDownLatch(1);
-                        try (AsyncHttpClient ahc = asyncHttpClient(config().setFollowRedirect(true).build())) {
+                        try (AsyncHttpClient ahc = asyncHttpClient(config().setFollowRedirect(true))) {
                             ahc.prepareGet("http://www.google.com/").execute(new AsyncHandler<Integer>() {
 
                                 public void onThrowable(Throwable t) {

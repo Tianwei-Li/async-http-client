@@ -16,7 +16,7 @@
 package org.asynchttpclient;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.asynchttpclient.Dsl.*;
+import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.asynchttpclient.util.MiscUtils.isNonEmpty;
 import static org.testng.Assert.*;
 
@@ -34,7 +34,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
-import org.slf4j.LoggerFactory;
 import org.testng.annotations.Test;
 
 /**
@@ -68,7 +67,7 @@ public class QueryParametersTest extends AbstractBasicTest {
         return new QueryStringHandler();
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testQueryParameters() throws IOException, ExecutionException, TimeoutException, InterruptedException {
         try (AsyncHttpClient client = asyncHttpClient()) {
             Future<Response> f = client.prepareGet("http://127.0.0.1:" + port1).addQueryParam("a", "1").addQueryParam("b", "2").execute();
@@ -80,21 +79,21 @@ public class QueryParametersTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testUrlRequestParametersEncoding() throws IOException, ExecutionException, InterruptedException {
         String URL = getTargetUrl() + "?q=";
         String REQUEST_PARAM = "github github \ngithub";
 
         try (AsyncHttpClient client = asyncHttpClient()) {
             String requestUrl2 = URL + URLEncoder.encode(REQUEST_PARAM, UTF_8.name());
-            LoggerFactory.getLogger(QueryParametersTest.class).info("Executing request [{}] ...", requestUrl2);
+            logger.info("Executing request [{}] ...", requestUrl2);
             Response response = client.prepareGet(requestUrl2).execute().get();
             String s = URLDecoder.decode(response.getHeader("q"), UTF_8.name());
             assertEquals(s, REQUEST_PARAM);
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void urlWithColonTest() throws Exception {
         try (AsyncHttpClient c = asyncHttpClient()) {
             String query = "test:colon:";

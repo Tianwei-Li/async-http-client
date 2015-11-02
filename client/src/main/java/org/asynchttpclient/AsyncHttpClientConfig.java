@@ -1,14 +1,23 @@
 package org.asynchttpclient;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.handler.ssl.SslContext;
+import io.netty.util.Timer;
+
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 
-import javax.net.ssl.SSLContext;
-
-import org.asynchttpclient.channel.SSLEngineFactory;
+import org.asynchttpclient.channel.pool.KeepAliveStrategy;
 import org.asynchttpclient.filter.IOExceptionFilter;
 import org.asynchttpclient.filter.RequestFilter;
 import org.asynchttpclient.filter.ResponseFilter;
+import org.asynchttpclient.netty.EagerNettyResponseBodyPart;
+import org.asynchttpclient.netty.LazyNettyResponseBodyPart;
+import org.asynchttpclient.netty.NettyResponseBodyPart;
 import org.asynchttpclient.netty.channel.pool.ChannelPool;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.proxy.ProxyServerSelector;
@@ -21,19 +30,12 @@ public interface AsyncHttpClientConfig {
     String getAhcVersion();
 
     /**
-     * Return the name of {@link AsyncHttpClient}, which is used for thread naming
-     * and debugging.
+     * Return the name of {@link AsyncHttpClient}, which is used for thread
+     * naming and debugging.
      *
      * @return the name.
      */
     String getThreadPoolName();
-
-    /**
-     * Return the name of {@link AsyncHttpClient}, or default string if name is null or empty.
-     *
-     * @return the name.
-     */
-    String getThreadPoolNameOrDefault();
 
     /**
      * Return the maximum number of connections an {@link AsyncHttpClient} can
@@ -61,17 +63,6 @@ public interface AsyncHttpClientConfig {
      *         wait when connecting to a remote host
      */
     int getConnectTimeout();
-
-    /**
-     * Return the maximum time, in milliseconds, a
-     * {@link org.asynchttpclient.ws.WebSocket} may be idle before being timed
-     * out.
-     * 
-     * @return the maximum time, in milliseconds, a
-     *         {@link org.asynchttpclient.ws.WebSocket} may be idle before being
-     *         timed out.
-     */
-    int getWebSocketTimeout();
 
     /**
      * Return the maximum time in millisecond an {@link AsyncHttpClient} can
@@ -119,7 +110,7 @@ public interface AsyncHttpClientConfig {
      *
      * @return true if keep-alive is enabled
      */
-    boolean isAllowPoolingConnections();
+    boolean isKeepAlive();
 
     /**
      * Return the USER_AGENT header value
@@ -154,18 +145,11 @@ public interface AsyncHttpClientConfig {
     ProxyServerSelector getProxyServerSelector();
 
     /**
-     * Return an instance of {@link SSLContext} used for SSL connection.
+     * Return an instance of {@link SslContext} used for SSL connection.
      *
-     * @return an instance of {@link SSLContext} used for SSL connection.
+     * @return an instance of {@link SslContext} used for SSL connection.
      */
-    SSLContext getSSLContext();
-
-    /**
-     * Return the {@link AdvancedConfig}
-     *
-     * @return the {@link AdvancedConfig}
-     */
-    AdvancedConfig getAdvancedConfig();
+    SslContext getSslContext();
 
     /**
      * Return the current {@link Realm}
@@ -193,7 +177,7 @@ public interface AsyncHttpClientConfig {
      *
      * @return Unmodifiable list of {@link java.io.IOException}
      */
-    List<IOExceptionFilter> getIOExceptionFilters();
+    List<IOExceptionFilter> getIoExceptionFilters();
 
     /**
      * Return the number of time the library will retry when an
@@ -230,6 +214,8 @@ public interface AsyncHttpClientConfig {
      */
     int getConnectionTtl();
 
+    boolean isUseOpenSsl();
+    
     boolean isAcceptAnyCertificate();
 
     /**
@@ -243,14 +229,14 @@ public interface AsyncHttpClientConfig {
     String[] getEnabledCipherSuites();
 
     /**
-     * @return the size of the SSL session cache
+     * @return the size of the SSL session cache, 0 means using the default value
      */
-    Integer getSslSessionCacheSize();
+    int getSslSessionCacheSize();
 
     /**
-     * @return the SSL session timeout in seconds (optional)
+     * @return the SSL session timeout in seconds, 0 means using the default value
      */
-    Integer getSslSessionTimeout();
+    int getSslSessionTimeout();
 
     int getHttpClientCodecMaxInitialLineLength();
 
@@ -260,9 +246,9 @@ public interface AsyncHttpClientConfig {
 
     boolean isDisableZeroCopy();
 
-    long getHandshakeTimeout();
+    int getHandshakeTimeout();
 
-    SSLEngineFactory getSslEngineFactory();
+    SslEngineFactory getSslEngineFactory();
 
     int getChunkedFileChunkSize();
 
@@ -275,4 +261,47 @@ public interface AsyncHttpClientConfig {
     int getShutdownQuietPeriod();
 
     int getShutdownTimeout();
+
+    Map<ChannelOption<Object>, Object> getChannelOptions();
+
+    EventLoopGroup getEventLoopGroup();
+
+    boolean isUseNativeTransport();
+
+    AdditionalChannelInitializer getHttpAdditionalChannelInitializer();
+
+    AdditionalChannelInitializer getWsAdditionalChannelInitializer();
+
+    ResponseBodyPartFactory getResponseBodyPartFactory();
+
+    ChannelPool getChannelPool();
+
+    Timer getNettyTimer();
+
+    KeepAliveStrategy getKeepAliveStrategy();
+
+    interface AdditionalChannelInitializer {
+
+        void initChannel(Channel channel) throws Exception;
+    }
+
+    enum ResponseBodyPartFactory {
+
+        EAGER {
+            @Override
+            public NettyResponseBodyPart newResponseBodyPart(ByteBuf buf, boolean last) {
+                return new EagerNettyResponseBodyPart(buf, last);
+            }
+        },
+
+        LAZY {
+
+            @Override
+            public NettyResponseBodyPart newResponseBodyPart(ByteBuf buf, boolean last) {
+                return new LazyNettyResponseBodyPart(buf, last);
+            }
+        };
+
+        public abstract NettyResponseBodyPart newResponseBodyPart(ByteBuf buf, boolean last);
+    }
 }

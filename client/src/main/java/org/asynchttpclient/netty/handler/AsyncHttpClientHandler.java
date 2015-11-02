@@ -27,7 +27,6 @@ import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 
-import org.asynchttpclient.AdvancedConfig;
 import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.netty.Callback;
 import org.asynchttpclient.netty.DiscardEvent;
@@ -41,23 +40,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Sharable
-public class Processor extends ChannelInboundHandlerAdapter {
+public class AsyncHttpClientHandler extends ChannelInboundHandlerAdapter {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(Processor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpClientHandler.class);
 
     private final AsyncHttpClientConfig config;
-    private final AdvancedConfig advancedConfig;
     private final ChannelManager channelManager;
     private final NettyRequestSender requestSender;
     private final Protocol protocol;
 
-    public Processor(AsyncHttpClientConfig config,//
-            AdvancedConfig advancedConfig,//
+    public AsyncHttpClientHandler(AsyncHttpClientConfig config,//
             ChannelManager channelManager,//
             NettyRequestSender requestSender,//
             Protocol protocol) {
         this.config = config;
-        this.advancedConfig = advancedConfig;
         this.channelManager = channelManager;
         this.requestSender = requestSender;
         this.protocol = protocol;
@@ -88,32 +84,29 @@ public class Processor extends ChannelInboundHandlerAdapter {
 
                 StreamedResponsePublisher publisher = (StreamedResponsePublisher) attribute;
 
-                if (msg instanceof LastHttpContent) {
-                    // Remove the handler from the pipeline, this will trigger
-                    // it to finish
-                    ctx.pipeline().remove(publisher);
-                    // Trigger a read, just in case the last read complete
-                    // triggered no new read
-                    ctx.read();
-                    // Send the last content on to the protocol, so that it can
-                    // conclude the cleanup
-                    protocol.handle(channel, publisher.future(), msg);
-                } else if (msg instanceof HttpContent) {
-
+                if(msg instanceof HttpContent) {
                     ByteBuf content = ((HttpContent) msg).content();
-
                     // Republish as a HttpResponseBodyPart
                     if (content.readableBytes() > 0) {
-                        NettyResponseBodyPart part = advancedConfig.getResponseBodyPartFactory().newResponseBodyPart(content, false);
+                        NettyResponseBodyPart part = config.getResponseBodyPartFactory().newResponseBodyPart(content, false);
                         ctx.fireChannelRead(part);
                     }
-
+                    if (msg instanceof LastHttpContent) {
+                        // Remove the handler from the pipeline, this will trigger
+                        // it to finish
+                        ctx.pipeline().remove(publisher);
+                        // Trigger a read, just in case the last read complete
+                        // triggered no new read
+                        ctx.read();
+                        // Send the last content on to the protocol, so that it can
+                        // conclude the cleanup
+                        protocol.handle(channel, publisher.future(), msg);
+                    }
                 } else {
                     LOGGER.info("Received unexpected message while expecting a chunk: " + msg);
                     ctx.pipeline().remove((StreamedResponsePublisher) attribute);
                     Channels.setDiscard(channel);
                 }
-
             } else if (attribute != DiscardEvent.INSTANCE) {
                 // unhandled message
                 LOGGER.debug("Orphan channel {} with attribute {} received message {}, closing", channel, attribute, msg);
@@ -154,7 +147,7 @@ public class Processor extends ChannelInboundHandlerAdapter {
             NettyResponseFuture<?> future = NettyResponseFuture.class.cast(attribute);
             future.touch();
 
-            if (!config.getIOExceptionFilters().isEmpty() && requestSender.applyIoExceptionFiltersAndReplayRequest(future, CHANNEL_CLOSED_EXCEPTION, channel))
+            if (!config.getIoExceptionFilters().isEmpty() && requestSender.applyIoExceptionFiltersAndReplayRequest(future, CHANNEL_CLOSED_EXCEPTION, channel))
                 return;
 
             protocol.onClose(future);
@@ -191,7 +184,7 @@ public class Processor extends ChannelInboundHandlerAdapter {
 
                     // FIXME why drop the original exception and throw a new
                     // one?
-                    if (!config.getIOExceptionFilters().isEmpty()) {
+                    if (!config.getIoExceptionFilters().isEmpty()) {
                         if (!requestSender.applyIoExceptionFiltersAndReplayRequest(future, CHANNEL_CLOSED_EXCEPTION, channel))
                             // Close the channel so the recovering can occurs.
                             Channels.silentlyCloseChannel(channel);

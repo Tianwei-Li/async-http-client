@@ -18,10 +18,9 @@ import org.asynchttpclient.HttpResponseBodyPart;
 /**
  * A callback class used when an HTTP response body is received.
  */
-public abstract class NettyResponseBodyPart extends HttpResponseBodyPart {
+public abstract class NettyResponseBodyPart implements HttpResponseBodyPart {
 
     private final boolean last;
-    private boolean closeConnection;
 
     public NettyResponseBodyPart(boolean last) {
         this.last = last;
@@ -33,21 +32,5 @@ public abstract class NettyResponseBodyPart extends HttpResponseBodyPart {
     @Override
     public boolean isLast() {
         return last;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void markUnderlyingConnectionAsToBeClosed() {
-        closeConnection = true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isUnderlyingConnectionToBeClosed() {
-        return closeConnection;
     }
 }

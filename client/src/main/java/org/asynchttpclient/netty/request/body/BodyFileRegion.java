@@ -13,6 +13,8 @@
  */
 package org.asynchttpclient.netty.request.body;
 
+import static org.asynchttpclient.util.Assertions.*;
+
 import static org.asynchttpclient.util.MiscUtils.closeSilently;
 
 import org.asynchttpclient.request.body.RandomAccessBody;
@@ -31,8 +33,7 @@ public class BodyFileRegion extends AbstractReferenceCounted implements FileRegi
     private long transfered;
 
     public BodyFileRegion(RandomAccessBody body) {
-        if (body == null)
-            throw new NullPointerException("body");
+        assertNotNull(body, "body");
         this.body = body;
     }
 
@@ -53,7 +54,7 @@ public class BodyFileRegion extends AbstractReferenceCounted implements FileRegi
 
     @Override
     public long transferTo(WritableByteChannel target, long position) throws IOException {
-        long written = body.transferTo(position, target);
+        long written = body.transferTo(target);
         if (written > 0) {
             transfered += written;
         }

@@ -14,15 +14,16 @@
 package org.asynchttpclient.request.body.generators;
 
 import static org.testng.Assert.assertEquals;
-
-import org.asynchttpclient.request.body.Body;
-import org.asynchttpclient.request.body.Body.State;
-import org.asynchttpclient.request.body.generator.ByteArrayBodyGenerator;
-import org.testng.annotations.Test;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Random;
+
+import org.asynchttpclient.request.body.Body;
+import org.asynchttpclient.request.body.Body.BodyState;
+import org.asynchttpclient.request.body.generator.ByteArrayBodyGenerator;
+import org.testng.annotations.Test;
 
 /**
  * @author Bryan Davis bpd@keynetics.com
@@ -42,14 +43,14 @@ public class ByteArrayBodyGeneratorTest {
             new ByteArrayBodyGenerator(srcArray);
         final Body body = babGen.createBody();
 
-        final ByteBuffer chunkBuffer = ByteBuffer.allocate(chunkSize);
+        final ByteBuf chunkBuffer = Unpooled.buffer(chunkSize);
 
         // should take 1 read to get through the srcArray
-        body.read(chunkBuffer);
-        assertEquals(chunkBuffer.position(), srcArraySize, "bytes read");
+        body.transferTo(chunkBuffer);
+        assertEquals(chunkBuffer.readableBytes(), srcArraySize, "bytes read");
         chunkBuffer.clear();
 
-        assertEquals(body.read(chunkBuffer), State.Stop, "body at EOF");
+        assertEquals(body.transferTo(chunkBuffer), BodyState.STOP, "body at EOF");
     }
 
     @Test(groups = "standalone")
@@ -62,13 +63,13 @@ public class ByteArrayBodyGeneratorTest {
             new ByteArrayBodyGenerator(srcArray);
         final Body body = babGen.createBody();
 
-        final ByteBuffer chunkBuffer = ByteBuffer.allocate(chunkSize);
+        final ByteBuf chunkBuffer = Unpooled.buffer(chunkSize);
 
         int reads = 0;
         int bytesRead = 0;
-        while (body.read(chunkBuffer) != State.Stop) {
+        while (body.transferTo(chunkBuffer) != BodyState.STOP) {
           reads += 1;
-          bytesRead += chunkBuffer.position();
+          bytesRead += chunkBuffer.readableBytes();
           chunkBuffer.clear();
         }
         assertEquals(reads, 4, "reads to drain generator");

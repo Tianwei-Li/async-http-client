@@ -12,6 +12,8 @@
  */
 package org.asynchttpclient.request.body.generator;
 
+import io.netty.buffer.ByteBuf;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,11 +45,6 @@ public class ReactiveStreamsBodyGenerator implements FeedableBodyGenerator {
     @Override
     public void feed(ByteBuffer buffer, boolean isLast) {
         feedableBodyGenerator.feed(buffer, isLast);
-    }
-
-    @Override
-    public void writeChunkBoundaries() {
-        feedableBodyGenerator.writeChunkBoundaries();
     }
 
     @Override
@@ -83,11 +80,11 @@ public class ReactiveStreamsBodyGenerator implements FeedableBodyGenerator {
         }
 
         @Override
-        public State read(ByteBuffer buffer) throws IOException {
+        public BodyState transferTo(ByteBuf target) throws IOException {
             if(initialized.compareAndSet(false, true))
                 publisher.subscribe(subscriber);
 
-            return body.read(buffer);
+            return body.transferTo(target);
         }
     }
 

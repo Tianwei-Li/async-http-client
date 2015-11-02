@@ -15,8 +15,8 @@
  */
 package org.asynchttpclient.oauth;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.fail;
+import static org.asynchttpclient.Dsl.*;
+import static org.testng.Assert.*;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
 
 import org.asynchttpclient.Param;
 import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.uri.Uri;
 import org.testng.annotations.Test;
 
@@ -132,11 +131,10 @@ public class OAuthSignatureCalculatorTest {
                 + "oauth_version%3D1.0");
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testSignatureBaseStringWithProperlyEncodedUri() {
 
-        Request request = new RequestBuilder("POST")//
-                .setUrl("http://example.com/request?b5=%3D%253D&a3=a&c%40=&a2=r%20b")//
+        Request request = post("http://example.com/request?b5=%3D%253D&a3=a&c%40=&a2=r%20b")//
                 .addFormParam("c2", "")//
                 .addFormParam("a3", "2 q")//
                 .build();
@@ -145,15 +143,14 @@ public class OAuthSignatureCalculatorTest {
         testSignatureBaseStringWithEncodableOAuthToken(request);
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testSignatureBaseStringWithRawUri() {
 
         // note: @ is legal so don't decode it into %40 because it won't be
         // encoded back
         // note: we don't know how to fix a = that should have been encoded as
         // %3D but who would be stupid enough to do that?
-        Request request = new RequestBuilder("POST")//
-                .setUrl("http://example.com/request?b5=%3D%253D&a3=a&c%40=&a2=r b")//
+        Request request = post("http://example.com/request?b5=%3D%253D&a3=a&c%40=&a2=r b")//
                 .addFormParam("c2", "")//
                 .addFormParam("a3", "2 q")//
                 .build();
@@ -164,7 +161,7 @@ public class OAuthSignatureCalculatorTest {
 
     // based on the reference test case from
     // http://oauth.pbwiki.com/TestCases
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testGetCalculateSignature() {
         ConsumerKey consumer = new ConsumerKey(CONSUMER_KEY, CONSUMER_SECRET);
         RequestToken user = new RequestToken(TOKEN_KEY, TOKEN_SECRET);
@@ -178,7 +175,7 @@ public class OAuthSignatureCalculatorTest {
         assertEquals(sig, "tR3+Ty81lMeYAr/Fid0kMTYa/WM=");
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testPostCalculateSignature() {
         ConsumerKey consumer = new ConsumerKey(CONSUMER_KEY, CONSUMER_SECRET);
         RequestToken user = new RequestToken(TOKEN_KEY, TOKEN_SECRET);
@@ -188,8 +185,7 @@ public class OAuthSignatureCalculatorTest {
         formParams.add(new Param("file", "vacation.jpg"));
         formParams.add(new Param("size", "original"));
         String url = "http://photos.example.net/photos";
-        final Request req = new RequestBuilder("POST")//
-                .setUri(Uri.create(url))//
+        final Request req = post(url)//
                 .setFormParams(formParams)//
                 .setSignatureCalculator(calc)//
                 .build();
@@ -217,7 +213,7 @@ public class OAuthSignatureCalculatorTest {
         assertEquals(sig, "wPkvxykrw+BTdCcGqKr+3I+PsiM=");
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testGetWithRequestBuilder() {
         ConsumerKey consumer = new ConsumerKey(CONSUMER_KEY, CONSUMER_SECRET);
         RequestToken user = new RequestToken(TOKEN_KEY, TOKEN_SECRET);
@@ -228,8 +224,7 @@ public class OAuthSignatureCalculatorTest {
         queryParams.add(new Param("size", "original"));
         String url = "http://photos.example.net/photos";
 
-        final Request req = new RequestBuilder("GET")//
-                .setUri(Uri.create(url))//
+        final Request req = get(url)//
                 .setQueryParams(queryParams)//
                 .setSignatureCalculator(calc)//
                 .build();
@@ -261,7 +256,7 @@ public class OAuthSignatureCalculatorTest {
         assertEquals(req.getUrl(), "http://photos.example.net/photos?file=vacation.jpg&size=original");
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testGetWithRequestBuilderAndQuery() {
         ConsumerKey consumer = new ConsumerKey(CONSUMER_KEY, CONSUMER_SECRET);
         RequestToken user = new RequestToken(TOKEN_KEY, TOKEN_SECRET);
@@ -269,8 +264,7 @@ public class OAuthSignatureCalculatorTest {
 
         String url = "http://photos.example.net/photos?file=vacation.jpg&size=original";
 
-        final Request req = new RequestBuilder("GET")//
-                .setUri(Uri.create(url))//
+        final Request req = get(url)//
                 .setSignatureCalculator(calc)//
                 .build();
 
@@ -298,15 +292,14 @@ public class OAuthSignatureCalculatorTest {
         assertEquals(req.getUrl(), "http://photos.example.net/photos?file=vacation.jpg&size=original");
     }
 
-    @Test(groups = "fast")
+    @Test(groups = "standalone")
     public void testWithNullRequestToken() {
       String url = "http://photos.example.net/photos?file=vacation.jpg&size=original";
       ConsumerKey consumer = new ConsumerKey("9djdj82h48djs9d2", CONSUMER_SECRET);
       RequestToken user = new RequestToken(null, null);
       OAuthSignatureCalculator calc = new OAuthSignatureCalculator(consumer, user);
 
-      final Request request = new RequestBuilder("GET")//
-          .setUri(Uri.create(url))//
+      final Request request = get(url)//
           .setSignatureCalculator(calc)//
           .build();
 

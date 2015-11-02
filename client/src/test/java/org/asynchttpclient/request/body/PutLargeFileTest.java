@@ -35,20 +35,20 @@ import org.testng.annotations.Test;
  */
 public class PutLargeFileTest extends AbstractBasicTest {
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = true)
+    @Test(groups = "standalone")
     public void testPutLargeFile() throws Exception {
 
         File file = createTempFile(1024 * 1024);
 
         int timeout = (int) file.length() / 1000;
 
-        try (AsyncHttpClient client = asyncHttpClient(config().setConnectTimeout(timeout).build())) {
+        try (AsyncHttpClient client = asyncHttpClient(config().setConnectTimeout(timeout))) {
             Response response = client.preparePut(getTargetUrl()).setBody(file).execute().get();
             assertEquals(response.getStatusCode(), 200);
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testPutSmallFile() throws Exception {
 
         File file = createTempFile(1024);

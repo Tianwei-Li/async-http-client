@@ -63,11 +63,11 @@ public class RedirectConnectionUsageTest extends AbstractBasicTest {
     /**
      * Tests that after a redirect the final url in the response reflect the redirect
      */
-    @Test
+    @Test(groups = "standalone")
     public void testGetRedirectFinalUrl() throws Exception {
 
         AsyncHttpClientConfig config = config()//
-                .setAllowPoolingConnections(true)//
+                .setKeepAlive(true)//
                 .setMaxConnectionsPerHost(1)//
                 .setMaxConnections(1)//
                 .setConnectTimeout(1000)//
@@ -76,9 +76,7 @@ public class RedirectConnectionUsageTest extends AbstractBasicTest {
                 .build();
 
         try (AsyncHttpClient c = asyncHttpClient(config)) {
-            Request r = new RequestBuilder("GET").setUrl(servletEndpointRedirectUrl).build();
-
-            ListenableFuture<Response> response = c.executeRequest(r);
+            ListenableFuture<Response> response = c.executeRequest(get(servletEndpointRedirectUrl));
             Response res = null;
             res = response.get();
             assertNotNull(res.getResponseBody());

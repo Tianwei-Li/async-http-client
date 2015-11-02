@@ -62,11 +62,11 @@ public class Head302Test extends AbstractBasicTest {
         return new Head302handler();
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testHEAD302() throws IOException, BrokenBarrierException, InterruptedException, ExecutionException, TimeoutException {
         try (AsyncHttpClient client = asyncHttpClient()) {
             final CountDownLatch l = new CountDownLatch(1);
-            Request request = new RequestBuilder("HEAD").setUrl("http://127.0.0.1:" + port1 + "/Test").build();
+            Request request = head("http://127.0.0.1:" + port1 + "/Test").build();
 
             client.executeRequest(request, new AsyncCompletionHandlerBase() {
                 @Override

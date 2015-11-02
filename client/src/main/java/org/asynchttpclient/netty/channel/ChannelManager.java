@@ -38,18 +38,17 @@ import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.internal.chmv8.ConcurrentHashMapV8;
 
 import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.Map.Entry;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 
-import org.asynchttpclient.AdvancedConfig;
 import org.asynchttpclient.AsyncHandler;
 import org.asynchttpclient.AsyncHttpClientConfig;
-import org.asynchttpclient.channel.SSLEngineFactory;
+import org.asynchttpclient.SslEngineFactory;
 import org.asynchttpclient.channel.pool.ConnectionPoolPartitioning;
 import org.asynchttpclient.handler.AsyncHandlerExtensions;
 import org.asynchttpclient.netty.Callback;
@@ -57,10 +56,11 @@ import org.asynchttpclient.netty.NettyResponseFuture;
 import org.asynchttpclient.netty.channel.pool.ChannelPool;
 import org.asynchttpclient.netty.channel.pool.DefaultChannelPool;
 import org.asynchttpclient.netty.channel.pool.NoopChannelPool;
+import org.asynchttpclient.netty.handler.AsyncHttpClientHandler;
 import org.asynchttpclient.netty.handler.HttpProtocol;
-import org.asynchttpclient.netty.handler.Processor;
 import org.asynchttpclient.netty.handler.WebSocketProtocol;
 import org.asynchttpclient.netty.request.NettyRequestSender;
+import org.asynchttpclient.netty.ssl.DefaultSslEngineFactory;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.uri.Uri;
 import org.slf4j.Logger;
@@ -69,20 +69,20 @@ import org.slf4j.LoggerFactory;
 public class ChannelManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChannelManager.class);
-    public static final String HTTP_HANDLER = "httpHandler";
-    public static final String SSL_HANDLER = "sslHandler";
-    public static final String HTTP_PROCESSOR = "httpProcessor";
-    public static final String WS_PROCESSOR = "wsProcessor";
+    public static final String PINNED_ENTRY = "entry";
+    public static final String HTTP_CLIENT_CODEC = "http";
+    public static final String SSL_HANDLER = "ssl";
     public static final String DEFLATER_HANDLER = "deflater";
     public static final String INFLATER_HANDLER = "inflater";
-    public static final String CHUNKED_WRITER_HANDLER = "chunkedWriter";
+    public static final String CHUNKED_WRITER_HANDLER = "chunked-writer";
     public static final String WS_DECODER_HANDLER = "ws-decoder";
     public static final String WS_FRAME_AGGREGATOR = "ws-aggregator";
     public static final String WS_ENCODER_HANDLER = "ws-encoder";
+    public static final String AHC_HTTP_HANDLER = "ahc-http";
+    public static final String AHC_WS_HANDLER = "ahc-ws";
 
     private final AsyncHttpClientConfig config;
-    private final AdvancedConfig advancedConfig;
-    private final SSLEngineFactory sslEngineFactory;
+    private final SslEngineFactory sslEngineFactory;
     private final EventLoopGroup eventLoopGroup;
     private final boolean allowReleaseEventLoopGroup;
     private final Class<? extends Channel> socketChannelClass;
@@ -102,24 +102,29 @@ public class ChannelManager {
     private final ConcurrentHashMapV8<Channel, Object> channelId2PartitionKey;
     private final ConcurrentHashMapV8.Fun<Object, Semaphore> semaphoreComputer;
 
-    private Processor wsProcessor;
+    private AsyncHttpClientHandler wsHandler;
 
-    public ChannelManager(final AsyncHttpClientConfig config, AdvancedConfig advancedConfig, Timer nettyTimer) {
+    public ChannelManager(final AsyncHttpClientConfig config, Timer nettyTimer) {
 
         this.config = config;
-        this.advancedConfig = advancedConfig;
-        this.sslEngineFactory = config.getSslEngineFactory() != null ? config.getSslEngineFactory() : new SSLEngineFactory.DefaultSSLEngineFactory(config);
+        try {
+            this.sslEngineFactory = config.getSslEngineFactory() != null ? config.getSslEngineFactory() : new DefaultSslEngineFactory(config);
+        } catch (SSLException e) {
+            throw new ExceptionInInitializerError(e);
+        }
 
-        ChannelPool channelPool = advancedConfig.getChannelPool();
-        if (channelPool == null && config.isAllowPoolingConnections()) {
-            channelPool = new DefaultChannelPool(config, nettyTimer);
-        } else if (channelPool == null) {
-            channelPool = new NoopChannelPool();
+        ChannelPool channelPool = config.getChannelPool();
+        if (channelPool == null) {
+            if (config.isKeepAlive()) {
+                channelPool = new DefaultChannelPool(config, nettyTimer);
+            } else {
+                channelPool = NoopChannelPool.INSTANCE;
+            }
         }
         this.channelPool = channelPool;
 
-        tooManyConnections = buildStaticIOException(String.format("Too many connections %s", config.getMaxConnections()));
-        tooManyConnectionsPerHost = buildStaticIOException(String.format("Too many connections per host %s", config.getMaxConnectionsPerHost()));
+        tooManyConnections = buildStaticIOException("Too many connections " + config.getMaxConnections());
+        tooManyConnectionsPerHost = buildStaticIOException("Too many connections per host " + config.getMaxConnectionsPerHost());
         poolAlreadyClosed = buildStaticIOException("Pool is already closed");
         maxTotalConnectionsEnabled = config.getMaxConnections() > 0;
         maxConnectionsPerHostEnabled = config.getMaxConnectionsPerHost() > 0;
@@ -135,9 +140,9 @@ public class ChannelManager {
                         if (maxConnectionsPerHostEnabled) {
                             Object partitionKey = channelId2PartitionKey.remove(Channel.class.cast(o));
                             if (partitionKey != null) {
-                                Semaphore freeChannelsForHost = freeChannelsPerHost.get(partitionKey);
-                                if (freeChannelsForHost != null)
-                                    freeChannelsForHost.release();
+                                Semaphore hostFreeChannels = freeChannelsPerHost.get(partitionKey);
+                                if (hostFreeChannels != null)
+                                    hostFreeChannels.release();
                             }
                         }
                     }
@@ -168,10 +173,10 @@ public class ChannelManager {
         handshakeTimeout = config.getHandshakeTimeout();
 
         // check if external EventLoopGroup is defined
-        ThreadFactory threadFactory = config.getThreadFactory() != null ? config.getThreadFactory() : new DefaultThreadFactory(config.getThreadPoolNameOrDefault());
-        allowReleaseEventLoopGroup = advancedConfig.getEventLoopGroup() == null;
+        ThreadFactory threadFactory = config.getThreadFactory() != null ? config.getThreadFactory() : new DefaultThreadFactory(config.getThreadPoolName());
+        allowReleaseEventLoopGroup = config.getEventLoopGroup() == null;
         if (allowReleaseEventLoopGroup) {
-            if (advancedConfig.isPreferNative()) {
+            if (config.isUseNativeTransport()) {
                 eventLoopGroup = newEpollEventLoopGroup(threadFactory);
                 socketChannelClass = getEpollSocketChannelClass();
 
@@ -181,7 +186,7 @@ public class ChannelManager {
             }
 
         } else {
-            eventLoopGroup = advancedConfig.getEventLoopGroup();
+            eventLoopGroup = config.getEventLoopGroup();
             if (eventLoopGroup instanceof OioEventLoopGroup)
                 throw new IllegalArgumentException("Oio is not supported");
 
@@ -203,7 +208,7 @@ public class ChannelManager {
             httpBootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getConnectTimeout());
             wsBootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getConnectTimeout());
         }
-        for (Entry<ChannelOption<Object>, Object> entry : advancedConfig.getChannelOptions().entrySet()) {
+        for (Entry<ChannelOption<Object>, Object> entry : config.getChannelOptions().entrySet()) {
             ChannelOption<Object> key = entry.getKey();
             Object value = entry.getValue();
             httpBootstrap.option(key, value);
@@ -228,28 +233,31 @@ public class ChannelManager {
             throw new IllegalArgumentException(e);
         }
     }
-    
+
     public void configureBootstraps(NettyRequestSender requestSender) {
 
-        HttpProtocol httpProtocol = new HttpProtocol(this, config, advancedConfig, requestSender);
-        final Processor httpProcessor = new Processor(config, advancedConfig, this, requestSender, httpProtocol);
+        HttpProtocol httpProtocol = new HttpProtocol(this, config, requestSender);
+        final AsyncHttpClientHandler httpHandler = new AsyncHttpClientHandler(config, this, requestSender, httpProtocol);
 
-        WebSocketProtocol wsProtocol = new WebSocketProtocol(this, config, advancedConfig, requestSender);
-        wsProcessor = new Processor(config, advancedConfig, this, requestSender, wsProtocol);
+        WebSocketProtocol wsProtocol = new WebSocketProtocol(this, config, requestSender);
+        wsHandler = new AsyncHttpClientHandler(config, this, requestSender, wsProtocol);
+
+        final NoopHandler pinnedEntry = new NoopHandler();
 
         httpBootstrap.handler(new ChannelInitializer<Channel>() {
             @Override
             protected void initChannel(Channel ch) throws Exception {
                 ch.pipeline()//
-                        .addLast(HTTP_HANDLER, newHttpClientCodec())//
+                        .addLast(PINNED_ENTRY, pinnedEntry)//
+                        .addLast(HTTP_CLIENT_CODEC, newHttpClientCodec())//
                         .addLast(INFLATER_HANDLER, newHttpContentDecompressor())//
                         .addLast(CHUNKED_WRITER_HANDLER, new ChunkedWriteHandler())//
-                        .addLast(HTTP_PROCESSOR, httpProcessor);
+                        .addLast(AHC_HTTP_HANDLER, httpHandler);
 
                 ch.config().setOption(ChannelOption.AUTO_READ, false);
 
-                if (advancedConfig.getHttpAdditionalPipelineInitializer() != null)
-                    advancedConfig.getHttpAdditionalPipelineInitializer().initPipeline(ch.pipeline());
+                if (config.getHttpAdditionalChannelInitializer() != null)
+                    config.getHttpAdditionalChannelInitializer().initChannel(ch);
             }
         });
 
@@ -257,11 +265,12 @@ public class ChannelManager {
             @Override
             protected void initChannel(Channel ch) throws Exception {
                 ch.pipeline()//
-                        .addLast(HTTP_HANDLER, newHttpClientCodec())//
-                        .addLast(WS_PROCESSOR, wsProcessor);
+                        .addLast(PINNED_ENTRY, pinnedEntry)//
+                        .addLast(HTTP_CLIENT_CODEC, newHttpClientCodec())//
+                        .addLast(AHC_WS_HANDLER, wsHandler);
 
-                if (advancedConfig.getWsAdditionalPipelineInitializer() != null)
-                    advancedConfig.getWsAdditionalPipelineInitializer().initPipeline(ch.pipeline());
+                if (config.getWsAdditionalChannelInitializer() != null)
+                    config.getWsAdditionalChannelInitializer().initChannel(ch);
             }
         });
     }
@@ -387,8 +396,8 @@ public class ChannelManager {
                 false);
     }
 
-    private SslHandler createSslHandler(String peerHost, int peerPort) throws GeneralSecurityException {
-        SSLEngine sslEngine = sslEngineFactory.newSSLEngine(peerHost, peerPort);
+    private SslHandler createSslHandler(String peerHost, int peerPort) {
+        SSLEngine sslEngine = sslEngineFactory.newSslEngine(config, peerHost, peerPort);
         SslHandler sslHandler = new SslHandler(sslEngine);
         if (handshakeTimeout > 0)
             sslHandler.setHandshakeTimeoutMillis(handshakeTimeout);
@@ -399,28 +408,28 @@ public class ChannelManager {
         return pipeline.get(SSL_HANDLER) != null;
     }
 
-    public void upgradeProtocol(ChannelPipeline pipeline, Uri requestUri) throws GeneralSecurityException {
-        if (pipeline.get(HTTP_HANDLER) != null)
-            pipeline.remove(HTTP_HANDLER);
+    public void upgradeProtocol(ChannelPipeline pipeline, Uri requestUri) throws SSLException {
+        if (pipeline.get(HTTP_CLIENT_CODEC) != null)
+            pipeline.remove(HTTP_CLIENT_CODEC);
 
         if (requestUri.isSecured())
             if (isSslHandlerConfigured(pipeline)) {
-                pipeline.addAfter(SSL_HANDLER, HTTP_HANDLER, newHttpClientCodec());
+                pipeline.addAfter(SSL_HANDLER, HTTP_CLIENT_CODEC, newHttpClientCodec());
             } else {
-                pipeline.addFirst(HTTP_HANDLER, newHttpClientCodec());
-                pipeline.addFirst(SSL_HANDLER, createSslHandler(requestUri.getHost(), requestUri.getExplicitPort()));
+                pipeline.addAfter(PINNED_ENTRY, HTTP_CLIENT_CODEC, newHttpClientCodec());
+                pipeline.addAfter(PINNED_ENTRY, SSL_HANDLER, createSslHandler(requestUri.getHost(), requestUri.getExplicitPort()));
             }
 
         else
-            pipeline.addFirst(HTTP_HANDLER, newHttpClientCodec());
+            pipeline.addAfter(PINNED_ENTRY, HTTP_CLIENT_CODEC, newHttpClientCodec());
 
         if (requestUri.isWebSocket()) {
-            pipeline.addAfter(HTTP_PROCESSOR, WS_PROCESSOR, wsProcessor);
-            pipeline.remove(HTTP_PROCESSOR);
+            pipeline.addAfter(AHC_HTTP_HANDLER, AHC_WS_HANDLER, wsHandler);
+            pipeline.remove(AHC_HTTP_HANDLER);
         }
     }
 
-    public SslHandler addSslHandler(ChannelPipeline pipeline, Uri uri, String virtualHost) throws GeneralSecurityException {
+    public SslHandler addSslHandler(ChannelPipeline pipeline, Uri uri, String virtualHost) {
         String peerHost;
         int peerPort;
 
@@ -444,37 +453,14 @@ public class ChannelManager {
         return sslHandler;
     }
 
-    /**
-     * Always make sure the channel who got cached support the proper protocol.
-     * It could only occurs when a HttpMethod. CONNECT is used against a proxy
-     * that requires upgrading from http to https.
-     */
-    /**
-     * @param pipeline the pipeline
-     * @param uri the uri
-     * @param virtualHost the virtual host
-     * @throws GeneralSecurityException if creating the SslHandler crashed
-     */
-    public void verifyChannelPipeline(ChannelPipeline pipeline, Uri uri, String virtualHost) throws GeneralSecurityException {
-
-        boolean sslHandlerConfigured = isSslHandlerConfigured(pipeline);
-
-        if (uri.isSecured()) {
-            if (!sslHandlerConfigured)
-                addSslHandler(pipeline, uri, virtualHost);
-
-        } else if (sslHandlerConfigured)
-            pipeline.remove(SSL_HANDLER);
-    }
-
     public Bootstrap getBootstrap(Uri uri, ProxyServer proxy) {
         return uri.isWebSocket() && proxy == null ? wsBootstrap : httpBootstrap;
     }
 
     public void upgradePipelineForWebSockets(ChannelPipeline pipeline) {
-        pipeline.addAfter(HTTP_HANDLER, WS_ENCODER_HANDLER, new WebSocket08FrameEncoder(true));
-        pipeline.remove(HTTP_HANDLER);
-        pipeline.addBefore(WS_PROCESSOR, WS_DECODER_HANDLER, new WebSocket08FrameDecoder(false, false, config.getWebSocketMaxFrameSize()));
+        pipeline.addAfter(HTTP_CLIENT_CODEC, WS_ENCODER_HANDLER, new WebSocket08FrameEncoder(true));
+        pipeline.remove(HTTP_CLIENT_CODEC);
+        pipeline.addBefore(AHC_WS_HANDLER, WS_DECODER_HANDLER, new WebSocket08FrameDecoder(false, false, config.getWebSocketMaxFrameSize()));
         pipeline.addAfter(WS_DECODER_HANDLER, WS_FRAME_AGGREGATOR, new WebSocketFrameAggregator(config.getWebSocketMaxBufferSize()));
     }
 

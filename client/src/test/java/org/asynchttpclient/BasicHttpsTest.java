@@ -22,14 +22,16 @@ import static org.testng.Assert.*;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 
+import java.net.ConnectException;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLHandshakeException;
 import javax.servlet.http.HttpServletResponse;
 
-import org.asynchttpclient.channel.pool.ConnectionStrategy;
+import org.asynchttpclient.channel.pool.KeepAliveStrategy;
 import org.asynchttpclient.test.EventCollectingHandler;
 import org.testng.annotations.Test;
 
@@ -39,10 +41,10 @@ public class BasicHttpsTest extends AbstractBasicHttpsTest {
         return String.format("https://127.0.0.1:%d/foo/test", port1);
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void zeroCopyPostTest() throws Exception {
 
-        try (AsyncHttpClient client = asyncHttpClient(config().setSslContext(createSslContext(new AtomicBoolean(true))).build())) {
+        try (AsyncHttpClient client = asyncHttpClient(config().setSslEngineFactory(createSslEngineFactory(new AtomicBoolean(true))))) {
             Response resp = client.preparePost(getTargetUrl()).setBody(SIMPLE_TEXT_FILE).setHeader("Content-Type", "text/html").execute().get();
             assertNotNull(resp);
             assertEquals(resp.getStatusCode(), HttpServletResponse.SC_OK);
@@ -50,9 +52,9 @@ public class BasicHttpsTest extends AbstractBasicHttpsTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void multipleSSLRequestsTest() throws Exception {
-        try (AsyncHttpClient c = asyncHttpClient(config().setSslContext(createSslContext(new AtomicBoolean(true))).build())) {
+        try (AsyncHttpClient c = asyncHttpClient(config().setSslEngineFactory(createSslEngineFactory(new AtomicBoolean(true))))) {
             String body = "hello there";
 
             // once
@@ -67,18 +69,18 @@ public class BasicHttpsTest extends AbstractBasicHttpsTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void multipleSSLWithoutCacheTest() throws Exception {
 
-        AdvancedConfig advancedConfig = advancedConfig().setConnectionStrategy(new ConnectionStrategy() {
+        KeepAliveStrategy keepAliveStrategy = new KeepAliveStrategy() {
 
             @Override
             public boolean keepAlive(Request ahcRequest, HttpRequest nettyRequest, HttpResponse nettyResponse) {
                 return !ahcRequest.getUri().isSecured();
             }
-        }).build();
+        };
 
-        try (AsyncHttpClient c = asyncHttpClient(config().setSslContext(createSslContext(new AtomicBoolean(true))).setAdvancedConfig(advancedConfig).build())) {
+        try (AsyncHttpClient c = asyncHttpClient(config().setSslEngineFactory(createSslEngineFactory(new AtomicBoolean(true))).setKeepAliveStrategy(keepAliveStrategy))) {
             String body = "hello there";
             c.preparePost(getTargetUrl()).setBody(body).setHeader("Content-Type", "text/html").execute();
 
@@ -90,11 +92,11 @@ public class BasicHttpsTest extends AbstractBasicHttpsTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void reconnectsAfterFailedCertificationPath() throws Exception {
 
         AtomicBoolean trust = new AtomicBoolean(false);
-        try (AsyncHttpClient client = asyncHttpClient(config().setSslContext(createSslContext(trust)).build())) {
+        try (AsyncHttpClient client = asyncHttpClient(config().setSslEngineFactory(createSslEngineFactory(trust)))) {
             String body = "hello there";
 
             // first request fails because server certificate is rejected
@@ -114,21 +116,22 @@ public class BasicHttpsTest extends AbstractBasicHttpsTest {
         }
     }
 
-    @Test(timeOut = 2000, expectedExceptions = { Exception.class })
+    @Test(groups = "standalone", timeOut = 2000)
     public void failInstantlyIfNotAllowedSelfSignedCertificate() throws Throwable {
 
-        try (AsyncHttpClient client = asyncHttpClient(config().setRequestTimeout(2000).build())) {
+        try (AsyncHttpClient client = asyncHttpClient(config().setRequestTimeout(2000))) {
             try {
                 client.prepareGet(getTargetUrl()).execute().get(TIMEOUT, TimeUnit.SECONDS);
             } catch (ExecutionException e) {
-                throw e.getCause() != null ? e.getCause() : e;
+                assertTrue(e.getCause() instanceof ConnectException, "Expecting a ConnectException");
+                assertTrue(e.getCause().getCause() instanceof SSLHandshakeException, "Expecting SSLHandshakeException cause");
             }
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testNormalEventsFired() throws Exception {
-        try (AsyncHttpClient client = asyncHttpClient(config().setSslContext(createSslContext(new AtomicBoolean(true))).build())) {
+        try (AsyncHttpClient client = asyncHttpClient(config().setSslEngineFactory(createSslEngineFactory(new AtomicBoolean(true))))) {
             EventCollectingHandler handler = new EventCollectingHandler();
             client.preparePost(getTargetUrl()).setBody("whatever").execute(handler).get(3, TimeUnit.SECONDS);
             handler.waitForCompletion(3, TimeUnit.SECONDS);

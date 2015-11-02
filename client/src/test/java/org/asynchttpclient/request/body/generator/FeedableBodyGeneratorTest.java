@@ -13,16 +13,18 @@
  */
 package org.asynchttpclient.request.body.generator;
 
-import org.asynchttpclient.request.body.Body;
-import org.asynchttpclient.request.body.Body.State;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import static org.testng.Assert.assertEquals;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import static org.testng.Assert.*;
+import org.asynchttpclient.request.body.Body;
+import org.asynchttpclient.request.body.Body.BodyState;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 public class FeedableBodyGeneratorTest {
 
@@ -44,66 +46,30 @@ public class FeedableBodyGeneratorTest {
     }
 
     @Test(groups = "standalone")
-    public void readingBytesReturnsFedContentWithEmptyLastBufferWhenChunkBoundariesEnabled() throws Exception {
-        feedableBodyGenerator.writeChunkBoundaries();
-        byte[] content = "Test123".getBytes(StandardCharsets.US_ASCII);
-        feedableBodyGenerator.feed(ByteBuffer.wrap(content), false);
-        Body body = feedableBodyGenerator.createBody();
-        assertEquals(readFromBody(body), "7\r\nTest123\r\n".getBytes(StandardCharsets.US_ASCII));
-        feedableBodyGenerator.feed(ByteBuffer.allocate(0), true);
-        assertEquals(readFromBody(body), "0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-        assertEquals(body.read(ByteBuffer.allocate(1)), State.Stop);
-    }
-
-    @Test(groups = "standalone")
-    public void readingBytesReturnsFedContentWithEmptyLastBufferWhenChunkBoundariesEnabledAllContentAvailable() throws Exception {
-        feedableBodyGenerator.writeChunkBoundaries();
-        byte[] content = "Test123".getBytes(StandardCharsets.US_ASCII);
-        feedableBodyGenerator.feed(ByteBuffer.wrap(content), false);
-        feedableBodyGenerator.feed(ByteBuffer.allocate(0), true);
-        Body body = feedableBodyGenerator.createBody();
-        assertEquals(readFromBody(body), "7\r\nTest123\r\n0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-        assertEquals(body.read(ByteBuffer.allocate(1)), State.Stop);
-    }
-
-    @Test(groups = "standalone")
-    public void readingBytesReturnsFedContentWithFilledLastBufferWhenChunkBoundariesEnabled() throws Exception {
-        feedableBodyGenerator.writeChunkBoundaries();
-        byte[] content = "Test123".getBytes(StandardCharsets.US_ASCII);
-        feedableBodyGenerator.feed(ByteBuffer.wrap(content), true);
-        Body body = feedableBodyGenerator.createBody();
-        assertEquals(readFromBody(body), "7\r\nTest123\r\n0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-        assertEquals(body.read(ByteBuffer.allocate(1)), State.Stop);
-
-    }
-
-    @Test(groups = "standalone")
-    public void readingBytesReturnsFedContentWithoutChunkBoundariesWhenNotEnabled() throws Exception {
+    public void readingBytesReturnsFedContentWithoutChunkBoundaries() throws Exception {
         byte[] content = "Test123".getBytes(StandardCharsets.US_ASCII);
         feedableBodyGenerator.feed(ByteBuffer.wrap(content), true);
         Body body = feedableBodyGenerator.createBody();
         assertEquals(readFromBody(body), "Test123".getBytes(StandardCharsets.US_ASCII));
-        assertEquals(body.read(ByteBuffer.allocate(1)), State.Stop);
+        assertEquals(body.transferTo(Unpooled.buffer(1)), BodyState.STOP);
     }
 
 
     @Test(groups = "standalone")
     public void returnZeroToSuspendStreamWhenNothingIsInQueue() throws Exception {
-        feedableBodyGenerator.writeChunkBoundaries();
         byte[] content = "Test123".getBytes(StandardCharsets.US_ASCII);
         feedableBodyGenerator.feed(ByteBuffer.wrap(content), false);
 
         Body body = feedableBodyGenerator.createBody();
-        assertEquals(readFromBody(body), "7\r\nTest123\r\n".getBytes(StandardCharsets.US_ASCII));
-        assertEquals(body.read(ByteBuffer.allocate(1)), State.Suspend);
+        assertEquals(readFromBody(body), "Test123".getBytes(StandardCharsets.US_ASCII));
+        assertEquals(body.transferTo(Unpooled.buffer(1)), BodyState.SUSPEND);
     }
 
     private byte[] readFromBody(Body body) throws IOException {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(512);
-        body.read(byteBuffer);
-        byteBuffer.flip();
-        byte[] readBytes = new byte[byteBuffer.remaining()];
-        byteBuffer.get(readBytes);
+        ByteBuf byteBuf = Unpooled.buffer(512);
+        body.transferTo(byteBuf);
+        byte[] readBytes = new byte[byteBuf.readableBytes()];
+        byteBuf.readBytes(readBytes);
         return readBytes;
     }
 

@@ -16,12 +16,12 @@
  */
 package org.asynchttpclient;
 
+import static org.asynchttpclient.util.Assertions.assertNotNull;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timer;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.asynchttpclient.AdvancedConfig.Builder;
 import org.asynchttpclient.filter.FilterContext;
 import org.asynchttpclient.filter.FilterException;
 import org.asynchttpclient.filter.RequestFilter;
@@ -43,39 +43,42 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
     private final Timer nettyTimer;
 
     /**
-     * Default signature calculator to use for all requests constructed by this client instance.
+     * Default signature calculator to use for all requests constructed by this
+     * client instance.
      *
      * @since 1.1
      */
     protected SignatureCalculator signatureCalculator;
 
     /**
-     * Create a new HTTP Asynchronous Client using the default {@link DefaultAsyncHttpClientConfig} configuration. The
-     * default {@link AsyncHttpClient} that will be used will be based on the classpath configuration.
+     * Create a new HTTP Asynchronous Client using the default
+     * {@link DefaultAsyncHttpClientConfig} configuration. The default
+     * {@link AsyncHttpClient} that will be used will be based on the classpath
+     * configuration.
      *
-     * If none of those providers are found, then the engine will throw an IllegalStateException.
+     * If none of those providers are found, then the engine will throw an
+     * IllegalStateException.
      */
     public DefaultAsyncHttpClient() {
         this(new DefaultAsyncHttpClientConfig.Builder().build());
     }
 
     /**
-     * Create a new HTTP Asynchronous Client using the specified {@link DefaultAsyncHttpClientConfig} configuration.
-     * This configuration will be passed to the default {@link AsyncHttpClient} that will be selected based on
-     * the classpath configuration.
+     * Create a new HTTP Asynchronous Client using the specified
+     * {@link DefaultAsyncHttpClientConfig} configuration. This configuration
+     * will be passed to the default {@link AsyncHttpClient} that will be
+     * selected based on the classpath configuration.
      *
      * @param config a {@link DefaultAsyncHttpClientConfig}
      */
     public DefaultAsyncHttpClient(AsyncHttpClientConfig config) {
-        
+
         this.config = config;
-        
-        AdvancedConfig advancedConfig = config.getAdvancedConfig() != null ? config.getAdvancedConfig() : new Builder().build();
 
-        allowStopNettyTimer = advancedConfig.getNettyTimer() == null;
-        nettyTimer = allowStopNettyTimer ? newNettyTimer() : advancedConfig.getNettyTimer();
+        allowStopNettyTimer = config.getNettyTimer() == null;
+        nettyTimer = allowStopNettyTimer ? newNettyTimer() : config.getNettyTimer();
 
-        channelManager = new ChannelManager(config, advancedConfig, nettyTimer);
+        channelManager = new ChannelManager(config, nettyTimer);
         requestSender = new NettyRequestSender(config, channelManager, nettyTimer, closed);
         channelManager.configureBootstraps(requestSender);
     }
@@ -85,8 +88,7 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
         timer.start();
         return timer;
     }
-    
-    
+
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
@@ -175,6 +177,11 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
     }
 
     @Override
+    public BoundRequestBuilder prepareRequest(RequestBuilder requestBuilder) {
+        return prepareRequest(requestBuilder.build());
+    }
+
+    @Override
     public <T> ListenableFuture<T> executeRequest(Request request, AsyncHandler<T> handler) {
 
         if (config.getRequestFilters().isEmpty()) {
@@ -194,8 +201,18 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
     }
 
     @Override
+    public <T> ListenableFuture<T> executeRequest(RequestBuilder requestBuilder, AsyncHandler<T> handler) {
+        return executeRequest(requestBuilder.build(), handler);
+    }
+
+    @Override
     public ListenableFuture<Response> executeRequest(Request request) {
         return executeRequest(request, new AsyncCompletionHandlerBase());
+    }
+
+    @Override
+    public ListenableFuture<Response> executeRequest(RequestBuilder requestBuilder) {
+        return executeRequest(requestBuilder.build());
     }
 
     private <T> ListenableFuture<T> execute(Request request, final AsyncHandler<T> asyncHandler) {
@@ -206,9 +223,10 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
             return new ListenableFuture.CompletedFailure<>(e);
         }
     }
-    
+
     /**
-     * Configure and execute the associated {@link RequestFilter}. This class may decorate the {@link Request} and {@link AsyncHandler}
+     * Configure and execute the associated {@link RequestFilter}. This class
+     * may decorate the {@link Request} and {@link AsyncHandler}
      *
      * @param fc {@link FilterContext}
      * @return {@link FilterContext}
@@ -216,9 +234,7 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
     private <T> FilterContext<T> preProcessRequest(FilterContext<T> fc) throws FilterException {
         for (RequestFilter asyncFilter : config.getRequestFilters()) {
             fc = asyncFilter.filter(fc);
-            if (fc == null) {
-                throw new NullPointerException("FilterContext is null");
-            }
+            assertNotNull(fc, "filterContext");
         }
 
         Request request = fc.getRequest();
@@ -238,7 +254,7 @@ public class DefaultAsyncHttpClient implements AsyncHttpClient {
     public ChannelPool getChannelPool() {
         return channelManager.getChannelPool();
     }
-    
+
     protected BoundRequestBuilder requestBuilder(String method, String url) {
         return new BoundRequestBuilder(this, method, config.isDisableUrlEncodingForBoundRequests()).setUrl(url).setSignatureCalculator(signatureCalculator);
     }

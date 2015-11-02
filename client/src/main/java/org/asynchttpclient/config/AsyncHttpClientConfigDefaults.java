@@ -47,10 +47,6 @@ public final class AsyncHttpClientConfigDefaults {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "requestTimeout");
     }
 
-    public static int defaultWebSocketTimeout() {
-        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "webSocketTimeout");
-    }
-
     public static int defaultConnectionTtl() {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "connectionTtl");
     }
@@ -87,8 +83,8 @@ public final class AsyncHttpClientConfigDefaults {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "strict302Handling");
     }
 
-    public static boolean defaultAllowPoolingConnections() {
-        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "allowPoolingConnections");
+    public static boolean defaultKeepAlive() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "keepAlive");
     }
 
     public static int defaultMaxRequestRetry() {
@@ -99,16 +95,20 @@ public final class AsyncHttpClientConfigDefaults {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "disableUrlEncodingForBoundRequests");
     }
 
+    public static boolean defaultUseOpenSsl() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "useOpenSsl");
+    }
+
     public static boolean defaultAcceptAnyCertificate() {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "acceptAnyCertificate");
     }
 
-    public static Integer defaultSslSessionCacheSize() {
-        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInteger(ASYNC_CLIENT_CONFIG_ROOT + "sslSessionCacheSize");
+    public static int defaultSslSessionCacheSize() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "sslSessionCacheSize");
     }
 
-    public static Integer defaultSslSessionTimeout() {
-        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInteger(ASYNC_CLIENT_CONFIG_ROOT + "sslSessionTimeout");
+    public static int defaultSslSessionTimeout() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "sslSessionTimeout");
     }
 
     public static int defaultHttpClientCodecMaxInitialLineLength() {
@@ -127,8 +127,8 @@ public final class AsyncHttpClientConfigDefaults {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "disableZeroCopy");
     }
 
-    public static long defaultHandshakeTimeout() {
-        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getLong(ASYNC_CLIENT_CONFIG_ROOT + "handshakeTimeout");
+    public static int defaultHandshakeTimeout() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "handshakeTimeout");
     }
 
     public static int defaultChunkedFileChunkSize() {
@@ -153,5 +153,9 @@ public final class AsyncHttpClientConfigDefaults {
 
     public static int defaultShutdownTimeout() {
         return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getInt(ASYNC_CLIENT_CONFIG_ROOT + "shutdownTimeout");
+    }
+
+    public static boolean defaultUseNativeTransport() {
+        return AsyncHttpClientConfigHelper.getAsyncHttpClientConfig().getBoolean(ASYNC_CLIENT_CONFIG_ROOT + "useNativeTransport");
     }
 }

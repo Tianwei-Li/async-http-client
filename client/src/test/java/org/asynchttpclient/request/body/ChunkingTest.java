@@ -35,30 +35,26 @@ import org.asynchttpclient.request.body.generator.InputStreamBodyGenerator;
 import org.asynchttpclient.request.body.generator.SimpleFeedableBodyGenerator;
 import org.testng.annotations.Test;
 
-/**
- * Test that the url fetcher is able to communicate via a proxy
- * 
- * @author dominict
- */
 public class ChunkingTest extends AbstractBasicTest {
+
     // So we can just test the returned data is the image,
     // and doesn't contain the chunked delimeters.
-    @Test()
+    @Test(groups = "standalone")
     public void testBufferLargerThanFileWithStreamBodyGenerator() throws Throwable {
         doTestWithInputStreamBodyGenerator(new BufferedInputStream(new FileInputStream(LARGE_IMAGE_FILE), 400000));
     }
 
-    @Test()
+    @Test(groups = "standalone")
     public void testBufferSmallThanFileWithStreamBodyGenerator() throws Throwable {
         doTestWithInputStreamBodyGenerator(new BufferedInputStream(new FileInputStream(LARGE_IMAGE_FILE)));
     }
 
-    @Test()
+    @Test(groups = "standalone")
     public void testDirectFileWithStreamBodyGenerator() throws Throwable {
         doTestWithInputStreamBodyGenerator(new FileInputStream(LARGE_IMAGE_FILE));
     }
 
-    @Test()
+    @Test(groups = "standalone")
     public void testDirectFileWithFeedableBodyGenerator() throws Throwable {
         doTestWithFeedableBodyGenerator(new FileInputStream(LARGE_IMAGE_FILE));
     }
@@ -66,9 +62,7 @@ public class ChunkingTest extends AbstractBasicTest {
     public void doTestWithInputStreamBodyGenerator(InputStream is) throws Throwable {
         try (AsyncHttpClient c = asyncHttpClient(httpClientBuilder())) {
 
-            RequestBuilder builder = new RequestBuilder("POST");
-            builder.setUrl(getTargetUrl());
-            builder.setBody(new InputStreamBodyGenerator(is));
+            RequestBuilder builder = post(getTargetUrl()).setBody(new InputStreamBodyGenerator(is));
 
             Request r = builder.build();
 
@@ -80,14 +74,10 @@ public class ChunkingTest extends AbstractBasicTest {
     public void doTestWithFeedableBodyGenerator(InputStream is) throws Throwable {
         try (AsyncHttpClient c = asyncHttpClient(httpClientBuilder())) {
 
-            RequestBuilder builder = new RequestBuilder("POST");
-            builder.setUrl(getTargetUrl());
             final FeedableBodyGenerator feedableBodyGenerator = new SimpleFeedableBodyGenerator();
-            builder.setBody(feedableBodyGenerator);
+            Request r = post(getTargetUrl()).setBody(feedableBodyGenerator).build();
 
-            Request r = builder.build();
-
-            final ListenableFuture<Response> responseFuture = c.executeRequest(r);
+            ListenableFuture<Response> responseFuture = c.executeRequest(r);
 
             feed(feedableBodyGenerator, is);
 
@@ -110,7 +100,7 @@ public class ChunkingTest extends AbstractBasicTest {
 
     private DefaultAsyncHttpClientConfig.Builder httpClientBuilder() {
         return config()//
-                .setAllowPoolingConnections(true)//
+                .setKeepAlive(true)//
                 .setMaxConnectionsPerHost(1)//
                 .setMaxConnections(1)//
                 .setConnectTimeout(1000)//

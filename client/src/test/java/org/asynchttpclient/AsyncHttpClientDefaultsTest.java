@@ -9,11 +9,11 @@ import org.testng.annotations.Test;
 
 import java.lang.reflect.Method;
 
-@Test
+@Test(groups = "standalone")
 public class AsyncHttpClientDefaultsTest {
 
     public void testDefaultMaxTotalConnections() {
-        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultMaxConnections(),-1);
+        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultMaxConnections(), -1);
         testIntegerSystemProperty("maxConnections", "defaultMaxConnections", "100");
     }
 
@@ -42,11 +42,6 @@ public class AsyncHttpClientDefaultsTest {
         testIntegerSystemProperty("requestTimeout", "defaultRequestTimeout", "100");
     }
 
-    public void testDefaultWebSocketTimeout() {
-        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultWebSocketTimeout(), 15 * 60 * 1000);
-        testIntegerSystemProperty("webSocketTimeout", "defaultWebSocketTimeout", "100");
-    }
-
     public void testDefaultConnectionTtl() {
         Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultConnectionTtl(), -1);
         testIntegerSystemProperty("connectionTtl", "defaultConnectionTtl", "100");
@@ -68,7 +63,7 @@ public class AsyncHttpClientDefaultsTest {
     }
 
     public void testDefaultUserAgent() {
-        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultUserAgent(),"NING/1.0");
+        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultUserAgent(), "NING/1.0");
         testStringSystemProperty("userAgent", "defaultUserAgent", "MyAHC");
     }
 
@@ -88,8 +83,8 @@ public class AsyncHttpClientDefaultsTest {
     }
 
     public void testDefaultAllowPoolingConnection() {
-       Assert.assertTrue(AsyncHttpClientConfigDefaults.defaultAllowPoolingConnections());
-       testBooleanSystemProperty("allowPoolingConnections", "defaultAllowPoolingConnections", "false");
+        Assert.assertTrue(AsyncHttpClientConfigDefaults.defaultKeepAlive());
+        testBooleanSystemProperty("keepAlive", "defaultKeepAlive", "false");
     }
 
     public void testDefaultMaxRequestRetry() {
@@ -103,53 +98,53 @@ public class AsyncHttpClientDefaultsTest {
     }
 
     public void testDefaultAcceptAnyCertificate() {
-       Assert.assertFalse(AsyncHttpClientConfigDefaults.defaultAcceptAnyCertificate());
-       testBooleanSystemProperty("acceptAnyCertificate", "defaultAcceptAnyCertificate", "true");
+        Assert.assertFalse(AsyncHttpClientConfigDefaults.defaultAcceptAnyCertificate());
+        testBooleanSystemProperty("acceptAnyCertificate", "defaultAcceptAnyCertificate", "true");
     }
-    
-    private void testIntegerSystemProperty(String propertyName,String methodName,String value){
+
+    private void testIntegerSystemProperty(String propertyName, String methodName, String value) {
         String previous = System.getProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);
         System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, value);
         AsyncHttpClientConfigHelper.reloadProperties();
         try {
-            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[]{});
-            Assert.assertEquals(method.invoke(null, new Object[]{}),Integer.parseInt(value));
+            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[] {});
+            Assert.assertEquals(method.invoke(null, new Object[] {}), Integer.parseInt(value));
         } catch (Exception e) {
-            Assert.fail("Couldn't find or execute method : " + methodName,e);
-        } 
-        if(previous != null)
+            Assert.fail("Couldn't find or execute method : " + methodName, e);
+        }
+        if (previous != null)
             System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, previous);
         else
             System.clearProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);
     }
-    
-    private void testBooleanSystemProperty(String propertyName,String methodName,String value){
+
+    private void testBooleanSystemProperty(String propertyName, String methodName, String value) {
         String previous = System.getProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);
         System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, value);
         AsyncHttpClientConfigHelper.reloadProperties();
         try {
-            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[]{});
-            Assert.assertEquals(method.invoke(null, new Object[]{}),Boolean.parseBoolean(value));
+            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[] {});
+            Assert.assertEquals(method.invoke(null, new Object[] {}), Boolean.parseBoolean(value));
         } catch (Exception e) {
-            Assert.fail("Couldn't find or execute method : " + methodName,e);
-        } 
-        if(previous != null)
+            Assert.fail("Couldn't find or execute method : " + methodName, e);
+        }
+        if (previous != null)
             System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, previous);
         else
             System.clearProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);
     }
-    
-    private void testStringSystemProperty(String propertyName,String methodName,String value){
+
+    private void testStringSystemProperty(String propertyName, String methodName, String value) {
         String previous = System.getProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);
         System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, value);
         AsyncHttpClientConfigHelper.reloadProperties();
         try {
-            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[]{});
-            Assert.assertEquals(method.invoke(null, new Object[]{}),value);
+            Method method = AsyncHttpClientConfigDefaults.class.getMethod(methodName, new Class[] {});
+            Assert.assertEquals(method.invoke(null, new Object[] {}), value);
         } catch (Exception e) {
-            Assert.fail("Couldn't find or execute method : " + methodName,e);
-        } 
-        if(previous != null)
+            Assert.fail("Couldn't find or execute method : " + methodName, e);
+        }
+        if (previous != null)
             System.setProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName, previous);
         else
             System.clearProperty(ASYNC_CLIENT_CONFIG_ROOT + propertyName);

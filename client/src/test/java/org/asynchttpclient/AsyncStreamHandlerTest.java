@@ -34,7 +34,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
 
     private static final String RESPONSE = "param_1_";
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamGETTest() throws Exception {
         final CountDownLatch l = new CountDownLatch(1);
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
@@ -73,7 +73,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamPOSTTest() throws Exception {
 
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
@@ -111,7 +111,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamInterruptTest() throws Exception {
         final CountDownLatch l = new CountDownLatch(1);
         
@@ -152,7 +152,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamFutureTest() throws Exception {
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
         final AtomicReference<Throwable> throwable = new AtomicReference<>();
@@ -193,7 +193,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamThrowableRefusedTest() throws Exception {
 
         final CountDownLatch l = new CountDownLatch(1);
@@ -223,7 +223,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void asyncStreamReusePOSTTest() throws Exception {
 
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
@@ -293,11 +293,11 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "online", "default_provider" })
+    @Test(groups = "online")
     public void asyncStream302RedirectWithBody() throws Exception {
         final AtomicReference<Integer> statusCode = new AtomicReference<>(0);
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
-        try (AsyncHttpClient c = asyncHttpClient(config().setFollowRedirect(true).build())) {
+        try (AsyncHttpClient c = asyncHttpClient(config().setFollowRedirect(true))) {
             Future<String> f = c.prepareGet("http://google.com/").execute(new AsyncHandlerAdapter() {
 
                 public State onStatusReceived(HttpResponseStatus status) throws Exception {
@@ -333,7 +333,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, timeOut = 3000, description = "Test behavior of 'read only status line' scenario.")
+    @Test(groups = "standalone", timeOut = 3000, description = "Test behavior of 'read only status line' scenario.")
     public void asyncStreamJustStatusLine() throws Exception {
         final int STATUS = 0;
         final int COMPLETED = 1;
@@ -399,7 +399,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "online", "default_provider" })
+    @Test(groups = "online")
     public void asyncOptionsTest() throws Exception {
         final AtomicReference<HttpHeaders> responseHeaders = new AtomicReference<>();
 
@@ -430,7 +430,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void closeConnectionTest() throws Exception {
         try (AsyncHttpClient c = asyncHttpClient()) {
             Response r = c.prepareGet(getTargetUrl()).execute(new AsyncHandler<Response>() {
@@ -447,11 +447,7 @@ public class AsyncStreamHandlerTest extends AbstractBasicTest {
 
                 public State onBodyPartReceived(HttpResponseBodyPart content) throws Exception {
                     builder.accumulate(content);
-
-                    if (content.isLast()) {
-                        content.markUnderlyingConnectionAsToBeClosed();
-                    }
-                    return State.CONTINUE;
+                    return content.isLast() ? State.ABORT : State.CONTINUE;
                 }
 
                 public State onStatusReceived(HttpResponseStatus responseStatus) throws Exception {

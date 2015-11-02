@@ -79,7 +79,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void basicAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server, false);
@@ -90,7 +90,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void basicPreemptiveAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server, true);
@@ -101,7 +101,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void digestAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server2, false);
@@ -112,7 +112,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void digestPreemptiveAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server2, true);
@@ -123,7 +123,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void basicFutureAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server, false);
@@ -134,7 +134,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void basicFuturePreemptiveAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server, true);
@@ -145,7 +145,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void digestFutureAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server2, false);
@@ -156,7 +156,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" }, enabled = false)
+    @Test(groups = "standalone", enabled = false)
     public void digestFuturePreemptiveAuthTimeoutTest() throws Exception {
         try (AsyncHttpClient client = newClient()) {
             Future<Response> f = execute(client, server2, true);
@@ -176,7 +176,7 @@ public class AuthTimeoutTest extends AbstractBasicTest {
     }
 
     private AsyncHttpClient newClient() {
-        return asyncHttpClient(config().setPooledConnectionIdleTimeout(2000).setConnectTimeout(20000).setRequestTimeout(2000).build());
+        return asyncHttpClient(config().setPooledConnectionIdleTimeout(2000).setConnectTimeout(20000).setRequestTimeout(2000));
     }
 
     protected Future<Response> execute(AsyncHttpClient client, Server server, boolean preemptive) throws IOException {

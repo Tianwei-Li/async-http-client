@@ -13,7 +13,7 @@
  */
 package org.asynchttpclient.request.body.generator;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
+import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -23,14 +23,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.asynchttpclient.request.body.Body;
 
 public final class SimpleFeedableBodyGenerator implements FeedableBodyGenerator, BodyGenerator {
-    private final static byte[] END_PADDING = "\r\n".getBytes(US_ASCII);
-    private final static byte[] ZERO = "0".getBytes(US_ASCII);
-    private final static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
     private final Queue<BodyPart> queue = new ConcurrentLinkedQueue<>();
     private FeedListener listener;
-
-    // must be set to true when using Netty 3 where native chunking is broken
-    private boolean writeChunkBoundaries = false;
 
     @Override
     public Body createBody() {
@@ -50,14 +44,9 @@ public final class SimpleFeedableBodyGenerator implements FeedableBodyGenerator,
         this.listener = listener;
     }
 
-    @Override
-    public void writeChunkBoundaries() {
-        this.writeChunkBoundaries = true;
-    }
-
     public final class PushBody implements Body {
 
-        private State state = State.Continue;
+        private BodyState state = BodyState.CONTINUE;
 
         @Override
         public long getContentLength() {
@@ -65,20 +54,20 @@ public final class SimpleFeedableBodyGenerator implements FeedableBodyGenerator,
         }
 
         @Override
-        public State read(final ByteBuffer buffer) throws IOException {
+        public BodyState transferTo(final ByteBuf target) throws IOException {
             switch (state) {
-                case Continue:
-                    return readNextPart(buffer);
-                case Stop:
-                    return State.Stop;
+                case CONTINUE:
+                    return readNextPart(target);
+                case STOP:
+                    return BodyState.STOP;
                 default:
                     throw new IllegalStateException("Illegal process state.");
             }
         }
 
-        private State readNextPart(ByteBuffer buffer) throws IOException {
-            State res = State.Suspend;
-            while (buffer.hasRemaining() && state != State.Stop) {
+        private BodyState readNextPart(ByteBuf target) throws IOException {
+            BodyState res = BodyState.SUSPEND;
+            while (target.isWritable() && state != BodyState.STOP) {
                 BodyPart nextPart = queue.peek();
                 if (nextPart == null) {
                     // Nothing in the queue. suspend stream if nothing was read. (reads == 0)
@@ -87,22 +76,19 @@ public final class SimpleFeedableBodyGenerator implements FeedableBodyGenerator,
                     // skip empty buffers
                     queue.remove();
                 } else {
-                    res = State.Continue;
-                    readBodyPart(buffer, nextPart);
+                    res = BodyState.CONTINUE;
+                    readBodyPart(target, nextPart);
                 }
             }
             return res;
         }
 
-        private void readBodyPart(ByteBuffer buffer, BodyPart part) {
-            part.initBoundaries();
-            move(buffer, part.size);
-            move(buffer, part.buffer);
-            move(buffer, part.endPadding);
+        private void readBodyPart(ByteBuf target, BodyPart part) {
+            move(target, part.buffer);
 
-            if (!part.buffer.hasRemaining() && !part.endPadding.hasRemaining()) {
+            if (!part.buffer.hasRemaining()) {
                 if (part.isLast) {
-                    state = State.Stop;
+                    state = BodyState.STOP;
                 }
                 queue.remove();
             }
@@ -113,59 +99,23 @@ public final class SimpleFeedableBodyGenerator implements FeedableBodyGenerator,
         }
     }
 
-    private void move(ByteBuffer destination, ByteBuffer source) {
-        int size = Math.min(destination.remaining(), source.remaining());
+    private void move(ByteBuf target, ByteBuffer source) {
+        int size = Math.min(target.writableBytes(), source.remaining());
         if (size > 0) {
             ByteBuffer slice = source.slice();
             slice.limit(size);
-            destination.put(slice);
+            target.writeBytes(slice);
             source.position(source.position() + size);
         }
     }
 
     private final class BodyPart {
         private final boolean isLast;
-        private ByteBuffer size = null;
         private final ByteBuffer buffer;
-        private ByteBuffer endPadding = null;
 
         public BodyPart(final ByteBuffer buffer, final boolean isLast) {
             this.buffer = buffer;
             this.isLast = isLast;
-        }
-
-        private void initBoundaries() {
-            if(size == null && endPadding == null) {
-                if (SimpleFeedableBodyGenerator.this.writeChunkBoundaries) {
-                    if(buffer.hasRemaining()) {
-                        final byte[] sizeAsHex = Integer.toHexString(buffer.remaining()).getBytes(US_ASCII);
-                        size = ByteBuffer.allocate(sizeAsHex.length + END_PADDING.length);
-                        size.put(sizeAsHex);
-                        size.put(END_PADDING);
-                        size.flip();
-                    } else {
-                        size = EMPTY_BUFFER;
-                    }
-
-                    if(isLast) {
-                        endPadding = ByteBuffer.allocate(END_PADDING.length * 3 + ZERO.length);
-                        if(buffer.hasRemaining()) {
-                            endPadding.put(END_PADDING);
-                        }
-
-                        //add last empty
-                        endPadding.put(ZERO);
-                        endPadding.put(END_PADDING);
-                        endPadding.put(END_PADDING);
-                        endPadding.flip();
-                    } else {
-                        endPadding = ByteBuffer.wrap(END_PADDING);
-                    }
-                } else {
-                    size = EMPTY_BUFFER;
-                    endPadding = EMPTY_BUFFER;
-                }
-            }
         }
     }
 }

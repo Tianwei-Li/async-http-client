@@ -14,17 +14,14 @@ package org.asynchttpclient.netty;
 
 import io.netty.buffer.ByteBuf;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
+
+import org.asynchttpclient.netty.util.ByteBufUtils;
 
 /**
  * A callback class used when an HTTP response body is received.
  */
 public class LazyNettyResponseBodyPart extends NettyResponseBodyPart {
-
-    private static final String ERROR_MESSAGE = "This implementation is intended for one to directly read from the underlying ByteBuf and release after usage. Not for the fainted heart!";
 
     private final ByteBuf buf;
 
@@ -49,21 +46,11 @@ public class LazyNettyResponseBodyPart extends NettyResponseBodyPart {
      */
     @Override
     public byte[] getBodyPartBytes() {
-        throw new UnsupportedOperationException(ERROR_MESSAGE);
-    }
-
-    @Override
-    public InputStream readBodyPartBytes() {
-        throw new UnsupportedOperationException(ERROR_MESSAGE);
-    }
-
-    @Override
-    public int writeTo(OutputStream outputStream) throws IOException {
-        throw new UnsupportedOperationException(ERROR_MESSAGE);
+        return ByteBufUtils.byteBuf2Bytes(buf.duplicate());
     }
 
     @Override
     public ByteBuffer getBodyByteBuffer() {
-        throw new UnsupportedOperationException(ERROR_MESSAGE);
+        return buf.nioBuffer();
     }
 }

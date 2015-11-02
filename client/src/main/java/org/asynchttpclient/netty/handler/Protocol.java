@@ -15,6 +15,7 @@ package org.asynchttpclient.netty.handler;
 
 import static io.netty.handler.codec.http.HttpHeaders.Names.*;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static org.asynchttpclient.util.Assertions.assertNotNull;
 import static org.asynchttpclient.util.HttpUtils.*;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -24,11 +25,10 @@ import io.netty.handler.codec.http.HttpResponse;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.asynchttpclient.AdvancedConfig;
 import org.asynchttpclient.AsyncHandler;
+import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.HttpResponseHeaders;
 import org.asynchttpclient.HttpResponseStatus;
-import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.Realm;
 import org.asynchttpclient.Realm.AuthScheme;
 import org.asynchttpclient.Request;
@@ -53,7 +53,6 @@ public abstract class Protocol {
 
     protected final ChannelManager channelManager;
     protected final AsyncHttpClientConfig config;
-    protected final AdvancedConfig advancedConfig;
     protected final NettyRequestSender requestSender;
 
     private final boolean hasResponseFilters;
@@ -68,14 +67,13 @@ public abstract class Protocol {
         REDIRECT_STATUSES.add(TEMPORARY_REDIRECT.code());
     }
 
-    public Protocol(ChannelManager channelManager, AsyncHttpClientConfig config, AdvancedConfig advancedConfig, NettyRequestSender requestSender) {
+    public Protocol(ChannelManager channelManager, AsyncHttpClientConfig config, NettyRequestSender requestSender) {
         this.channelManager = channelManager;
         this.config = config;
         this.requestSender = requestSender;
-        this.advancedConfig = advancedConfig;
 
         hasResponseFilters = !config.getResponseFilters().isEmpty();
-        hasIOExceptionFilters = !config.getIOExceptionFilters().isEmpty();
+        hasIOExceptionFilters = !config.getIoExceptionFilters().isEmpty();
         maxRedirectException = new MaxRedirectException("Maximum redirect reached: " + config.getMaxRedirects());
     }
 
@@ -216,9 +214,7 @@ public abstract class Protocol {
                 try {
                     fc = asyncFilter.filter(fc);
                     // FIXME Is it worth protecting against this?
-                    if (fc == null) {
-                        throw new NullPointerException("FilterContext is null");
-                    }
+                    assertNotNull("fc", "filterContext");
                 } catch (FilterException efe) {
                     requestSender.abort(channel, future, efe);
                 }

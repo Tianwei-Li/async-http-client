@@ -13,13 +13,14 @@
 
 package org.asynchttpclient.request.body.generator;
 
-import org.asynchttpclient.request.body.Body;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
+
+import org.asynchttpclient.request.body.Body;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link BodyGenerator} which use an {@link InputStream} for reading bytes, without having to read the entire stream in memory.
@@ -61,10 +62,10 @@ public final class InputStreamBodyGenerator implements BodyGenerator {
             return -1L;
         }
 
-        public State read(ByteBuffer buffer) throws IOException {
+        public BodyState transferTo(ByteBuf target) throws IOException {
 
             // To be safe.
-            chunk = new byte[buffer.remaining() - 10];
+            chunk = new byte[target.writableBytes() - 10];
 
             int read = -1;
             boolean write = false;
@@ -75,10 +76,10 @@ public final class InputStreamBodyGenerator implements BodyGenerator {
             }
 
             if (read > 0) {
-                buffer.put(chunk, 0, read);
+                target.writeBytes(chunk, 0, read);
                 write = true;
             }
-            return write ? State.Continue : State.Stop;
+            return write ? BodyState.CONTINUE : BodyState.STOP;
         }
 
         public void close() throws IOException {

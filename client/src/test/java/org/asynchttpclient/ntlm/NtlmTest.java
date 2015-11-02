@@ -26,8 +26,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.asynchttpclient.AbstractBasicTest;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.Realm;
-import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.testng.Assert;
@@ -38,8 +36,8 @@ public class NtlmTest extends AbstractBasicTest {
     public static class NTLMHandler extends AbstractHandler {
 
         @Override
-        public void handle(String pathInContext, org.eclipse.jetty.server.Request request, HttpServletRequest httpRequest,
-                HttpServletResponse httpResponse) throws IOException, ServletException {
+        public void handle(String pathInContext, org.eclipse.jetty.server.Request request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) throws IOException,
+                ServletException {
 
             String authorization = httpRequest.getHeader("Authorization");
             if (authorization == null) {
@@ -76,22 +74,20 @@ public class NtlmTest extends AbstractBasicTest {
 
     private void ntlmAuthTest(Realm.Builder realmBuilder) throws IOException, InterruptedException, ExecutionException {
 
-        try (AsyncHttpClient client = asyncHttpClient(config().setRealm(realmBuilder.build()))) {
-            Request request = new RequestBuilder("GET").setUrl(getTargetUrl()).build();
-            Future<Response> responseFuture = client.executeRequest(request);
+        try (AsyncHttpClient client = asyncHttpClient(config().setRealm(realmBuilder))) {
+            Future<Response> responseFuture = client.executeRequest(get(getTargetUrl()));
             int status = responseFuture.get().getStatusCode();
             Assert.assertEquals(status, 200);
         }
     }
 
-    @Test
+    @Test(groups = "standalone")
     public void lazyNTLMAuthTest() throws IOException, InterruptedException, ExecutionException {
         ntlmAuthTest(realmBuilderBase());
     }
 
-    @Test
+    @Test(groups = "standalone")
     public void preemptiveNTLMAuthTest() throws IOException, InterruptedException, ExecutionException {
         ntlmAuthTest(realmBuilderBase().setUsePreemptiveAuth(true));
     }
 }
-

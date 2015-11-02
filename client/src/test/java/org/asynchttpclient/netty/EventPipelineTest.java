@@ -15,38 +15,34 @@ package org.asynchttpclient.netty;
 
 import static org.asynchttpclient.Dsl.*;
 import static org.testng.Assert.*;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpMessage;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.asynchttpclient.AbstractBasicTest;
-import org.asynchttpclient.AdvancedConfig;
-import org.asynchttpclient.AdvancedConfig.AdditionalPipelineInitializer;
 import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.Response;
 import org.testng.annotations.Test;
 
 public class EventPipelineTest extends AbstractBasicTest {
 
-    @Test(groups = { "standalone", "netty_provider" })
+    @Test(groups = "standalone")
     public void asyncPipelineTest() throws Exception {
 
-        AdvancedConfig advancedConfig = advancedConfig().setHttpAdditionalPipelineInitializer(new AdditionalPipelineInitializer() {
-            public void initPipeline(ChannelPipeline pipeline) throws Exception {
-                pipeline.addBefore("inflater", "copyEncodingHeader", new CopyEncodingHandler());
+        AsyncHttpClientConfig.AdditionalChannelInitializer httpAdditionalPipelineInitializer = new AsyncHttpClientConfig.AdditionalChannelInitializer() {
+            public void initChannel(Channel channel) throws Exception {
+                channel.pipeline().addBefore("inflater", "copyEncodingHeader", new CopyEncodingHandler());
             }
-        }).build();
+        };
 
-        try (AsyncHttpClient p = asyncHttpClient(config().setAdvancedConfig(advancedConfig).build())) {
+        try (AsyncHttpClient p = asyncHttpClient(config().setHttpAdditionalChannelInitializer(httpAdditionalPipelineInitializer))) {
             final CountDownLatch l = new CountDownLatch(1);
-            Request request = new RequestBuilder("GET").setUrl(getTargetUrl()).build();
-            p.executeRequest(request, new AsyncCompletionHandlerAdapter() {
+            p.executeRequest(get(getTargetUrl()), new AsyncCompletionHandlerAdapter() {
                 @Override
                 public Response onCompleted(Response response) throws Exception {
                     try {

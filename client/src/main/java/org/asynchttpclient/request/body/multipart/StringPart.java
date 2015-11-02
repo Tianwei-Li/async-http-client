@@ -13,10 +13,8 @@
 package org.asynchttpclient.request.body.multipart;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
+import static org.asynchttpclient.util.Assertions.assertNotNull;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 
 public class StringPart extends PartBase {
@@ -39,7 +37,6 @@ public class StringPart extends PartBase {
     /**
      * Contents of this StringPart.
      */
-    private final byte[] content;
     private final String value;
 
     private static Charset charsetOrDefault(Charset charset) {
@@ -72,44 +69,13 @@ public class StringPart extends PartBase {
 
     public StringPart(String name, String value, String contentType, Charset charset, String contentId, String transferEncoding) {
         super(name, contentTypeOrDefault(contentType), charsetOrDefault(charset), contentId, transferEncodingOrDefault(transferEncoding));
-        if (value == null)
-            throw new NullPointerException("value");
+        assertNotNull(value, "value");
 
         if (value.indexOf(0) != -1)
             // See RFC 2048, 2.8. "8bit Data"
             throw new IllegalArgumentException("NULs may not be present in string parts");
 
-        content = value.getBytes(getCharset());
         this.value = value;
-    }
-
-    /**
-     * Return the length of the data.
-     * 
-     * @return The length of the data.
-     */
-    protected long getDataLength() {
-        return content.length;
-    }
-
-    public byte[] getBytes(byte[] boundary) throws IOException {
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        OutputStreamPartVisitor visitor = new OutputStreamPartVisitor(os);
-        visitStart(visitor, boundary);
-        visitDispositionHeader(visitor);
-        visitContentTypeHeader(visitor);
-        visitTransferEncodingHeader(visitor);
-        visitContentIdHeader(visitor);
-        visitCustomHeaders(visitor);
-        visitEndOfHeaders(visitor);
-        os.write(content);
-        visitEnd(visitor);
-        return os.toByteArray();
-    }
-
-    @Override
-    public long write(WritableByteChannel target, byte[] boundary) throws IOException {
-        return MultipartUtils.writeBytesToChannel(target, getBytes(boundary));
     }
 
     public String getValue() {

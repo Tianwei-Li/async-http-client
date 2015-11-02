@@ -30,20 +30,21 @@ import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.ListenableFuture;
 import org.asynchttpclient.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class MaxTotalConnectionTest extends AbstractBasicTest {
-    protected final Logger log = LoggerFactory.getLogger(AbstractBasicTest.class);
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "online")
     public void testMaxTotalConnectionsExceedingException() throws IOException {
         String[] urls = new String[] { "http://google.com", "http://github.com/" };
 
-        AsyncHttpClientConfig config = config().setConnectTimeout(1000)
-                .setRequestTimeout(5000).setAllowPoolingConnections(false).setMaxConnections(1).setMaxConnectionsPerHost(1)
+        AsyncHttpClientConfig config = config()//
+                .setConnectTimeout(1000)//
+                .setRequestTimeout(5000)//
+                .setKeepAlive(false)//
+                .setMaxConnections(1)//
+                .setMaxConnectionsPerHost(1)//
                 .build();
 
         try (AsyncHttpClient client = asyncHttpClient(config)) {
@@ -51,14 +52,15 @@ public class MaxTotalConnectionTest extends AbstractBasicTest {
             for (int i = 0; i < urls.length; i++) {
                 futures.add(client.prepareGet(urls[i]).execute());
             }
-            
+
             boolean caughtError = false;
             int i;
             for (i = 0; i < urls.length; i++) {
                 try {
                     futures.get(i).get();
                 } catch (Exception e) {
-                    // assert that 2nd request fails, because maxTotalConnections=1
+                    // assert that 2nd request fails, because
+                    // maxTotalConnections=1
                     caughtError = true;
                     break;
                 }
@@ -69,16 +71,21 @@ public class MaxTotalConnectionTest extends AbstractBasicTest {
         }
     }
 
-    @Test
+    @Test(groups = "online")
     public void testMaxTotalConnections() throws Exception {
-        String[] urls = new String[] { "http://google.com", "http://lenta.ru" };
+        String[] urls = new String[] { "http://google.com", "http://gatling.io" };
 
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<Throwable> ex = new AtomicReference<>();
         final AtomicReference<String> failedUrl = new AtomicReference<>();
 
-        AsyncHttpClientConfig config = config().setConnectTimeout(1000).setRequestTimeout(5000)
-                .setAllowPoolingConnections(false).setMaxConnections(2).setMaxConnectionsPerHost(1).build();
+        AsyncHttpClientConfig config = config()//
+                .setConnectTimeout(1000)//
+                .setRequestTimeout(5000)//
+                .setKeepAlive(false)//
+                .setMaxConnections(2)//
+                .setMaxConnectionsPerHost(1)//
+                .build();
 
         try (AsyncHttpClient client = asyncHttpClient(config)) {
             for (String url : urls) {

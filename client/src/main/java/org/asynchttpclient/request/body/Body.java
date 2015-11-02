@@ -13,31 +13,32 @@
 
 package org.asynchttpclient.request.body;
 
+import io.netty.buffer.ByteBuf;
+
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /**
  * A request body.
  */
 public interface Body extends Closeable {
 
-    enum State {
+    enum BodyState {
 
         /**
          * There's something to read
          */
-        Continue,
+        CONTINUE,
 
         /**
          * There's nothing to read and input has to suspend
          */
-        Suspend,
+        SUSPEND,
 
         /**
          * There's nothing to read and input has to stop
          */
-        Stop;
+        STOP;
     }
 
     /**
@@ -50,10 +51,9 @@ public interface Body extends Closeable {
     /**
      * Reads the next chunk of bytes from the body.
      *
-     * @param buffer The buffer to store the chunk in, must not be {@code null}.
+     * @param target The buffer to store the chunk in, must not be {@code null}.
      * @return The non-negative number of bytes actually read or {@code -1} if the body has been read completely.
      * @throws IOException If the chunk could not be read.
      */
-    // FIXME introduce a visitor pattern so that Netty can pass a pooled buffer
-    State read(ByteBuffer buffer) throws IOException;
+    BodyState transferTo(ByteBuf target) throws IOException;
 }

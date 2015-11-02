@@ -88,12 +88,12 @@ public class MultipleHeaderTest extends AbstractBasicTest {
         serverSocket.close();
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testMultipleOtherHeaders() throws IOException, ExecutionException, TimeoutException, InterruptedException {
         final String[] xffHeaders = new String[] { null, null };
 
         try (AsyncHttpClient ahc = asyncHttpClient()) {
-            Request req = new RequestBuilder("GET").setUrl("http://localhost:" + port1 + "/MultiOther").build();
+            Request req = get("http://localhost:" + port1 + "/MultiOther").build();
             final CountDownLatch latch = new CountDownLatch(1);
             ahc.executeRequest(req, new AsyncHandler<Void>() {
                 public void onThrowable(Throwable t) {
@@ -137,12 +137,12 @@ public class MultipleHeaderTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void testMultipleEntityHeaders() throws IOException, ExecutionException, TimeoutException, InterruptedException {
         final String[] clHeaders = new String[] { null, null };
 
         try (AsyncHttpClient ahc = asyncHttpClient()) {
-            Request req = new RequestBuilder("GET").setUrl("http://localhost:" + port1 + "/MultiEnt").build();
+            Request req = get("http://localhost:" + port1 + "/MultiEnt").build();
             final CountDownLatch latch = new CountDownLatch(1);
             ahc.executeRequest(req, new AsyncHandler<Void>() {
                 public void onThrowable(Throwable t) {

@@ -29,7 +29,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.asynchttpclient.AbstractBasicTest;
 import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.Request;
 import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
@@ -64,7 +63,7 @@ public class FilterTest extends AbstractBasicTest {
         return String.format("http://127.0.0.1:%d/foo/test", port1);
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void basicTest() throws Exception {
         try (AsyncHttpClient c = asyncHttpClient(config().addRequestFilter(new ThrottleRequestFilter(100)))) {
             Response response = c.preparePost(getTargetUrl()).execute().get();
@@ -73,7 +72,7 @@ public class FilterTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void loadThrottleTest() throws Exception {
         try (AsyncHttpClient c = asyncHttpClient(config().addRequestFilter(new ThrottleRequestFilter(10)))) {
             List<Future<Response>> futures = new ArrayList<>();
@@ -89,7 +88,7 @@ public class FilterTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void maxConnectionsText() throws Exception {
         try (AsyncHttpClient c = asyncHttpClient(config().addRequestFilter(new ThrottleRequestFilter(0, 1000)))) {
             c.preparePost(getTargetUrl()).execute().get();
@@ -99,42 +98,38 @@ public class FilterTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void basicResponseFilterTest() throws Exception {
-        AsyncHttpClientConfig config = config().addResponseFilter(new ResponseFilter() {
 
+        ResponseFilter responseFilter = new ResponseFilter() {
             @Override
             public <T> FilterContext<T> filter(FilterContext<T> ctx) throws FilterException {
                 return ctx;
             }
+        };
 
-        }).build();
-
-        try (AsyncHttpClient c = asyncHttpClient(config)) {
+        try (AsyncHttpClient c = asyncHttpClient(config().addResponseFilter(responseFilter))) {
             Response response = c.preparePost(getTargetUrl()).execute().get();
             assertNotNull(response);
             assertEquals(response.getStatusCode(), 200);
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void replayResponseFilterTest() throws Exception {
+
         final AtomicBoolean replay = new AtomicBoolean(true);
-
-        AsyncHttpClientConfig config = config().addResponseFilter(new ResponseFilter() {
-
+        ResponseFilter responseFilter = new ResponseFilter() {
             public <T> FilterContext<T> filter(FilterContext<T> ctx) throws FilterException {
-
                 if (replay.getAndSet(false)) {
                     Request request = new RequestBuilder(ctx.getRequest()).addHeader("X-Replay", "true").build();
                     return new FilterContext.FilterContextBuilder<T>().asyncHandler(ctx.getAsyncHandler()).request(request).replayRequest(true).build();
                 }
                 return ctx;
             }
+        };
 
-        }).build();
-
-        try (AsyncHttpClient c = asyncHttpClient(config)) {
+        try (AsyncHttpClient c = asyncHttpClient(config().addResponseFilter(responseFilter))) {
             Response response = c.preparePost(getTargetUrl()).execute().get();
             assertNotNull(response);
             assertEquals(response.getStatusCode(), 200);
@@ -142,24 +137,21 @@ public class FilterTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void replayStatusCodeResponseFilterTest() throws Exception {
+
         final AtomicBoolean replay = new AtomicBoolean(true);
-
-        AsyncHttpClientConfig config = config().addResponseFilter(new ResponseFilter() {
-
+        ResponseFilter responseFilter = new ResponseFilter() {
             public <T> FilterContext<T> filter(FilterContext<T> ctx) throws FilterException {
-
                 if (ctx.getResponseStatus() != null && ctx.getResponseStatus().getStatusCode() == 200 && replay.getAndSet(false)) {
                     Request request = new RequestBuilder(ctx.getRequest()).addHeader("X-Replay", "true").build();
                     return new FilterContext.FilterContextBuilder<T>().asyncHandler(ctx.getAsyncHandler()).request(request).replayRequest(true).build();
                 }
                 return ctx;
             }
+        };
 
-        }).build();
-
-        try (AsyncHttpClient c = asyncHttpClient(config)) {
+        try (AsyncHttpClient c = asyncHttpClient(config().addResponseFilter(responseFilter))) {
             Response response = c.preparePost(getTargetUrl()).execute().get();
             assertNotNull(response);
             assertEquals(response.getStatusCode(), 200);
@@ -167,24 +159,21 @@ public class FilterTest extends AbstractBasicTest {
         }
     }
 
-    @Test(groups = { "standalone", "default_provider" })
+    @Test(groups = "standalone")
     public void replayHeaderResponseFilterTest() throws Exception {
+
         final AtomicBoolean replay = new AtomicBoolean(true);
-        AsyncHttpClientConfig config = config().addResponseFilter(new ResponseFilter() {
-
+        ResponseFilter responseFilter = new ResponseFilter() {
             public <T> FilterContext<T> filter(FilterContext<T> ctx) throws FilterException {
-
                 if (ctx.getResponseHeaders() != null && ctx.getResponseHeaders().getHeaders().get("Ping").equals("Pong") && replay.getAndSet(false)) {
-
                     Request request = new RequestBuilder(ctx.getRequest()).addHeader("Ping", "Pong").build();
                     return new FilterContext.FilterContextBuilder<T>().asyncHandler(ctx.getAsyncHandler()).request(request).replayRequest(true).build();
                 }
                 return ctx;
             }
+        };
 
-        }).build();
-
-        try (AsyncHttpClient c = asyncHttpClient(config)) {
+        try (AsyncHttpClient c = asyncHttpClient(config().addResponseFilter(responseFilter))) {
             Response response = c.preparePost(getTargetUrl()).addHeader("Ping", "Pong").execute().get();
             assertNotNull(response);
             assertEquals(response.getStatusCode(), 200);

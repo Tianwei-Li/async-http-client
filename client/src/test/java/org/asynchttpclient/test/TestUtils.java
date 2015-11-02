@@ -1,9 +1,44 @@
 package org.asynchttpclient.test;
 
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.testng.Assert.assertEquals;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+
 import org.apache.commons.io.FileUtils;
+import org.asynchttpclient.SslEngineFactory;
+import org.asynchttpclient.netty.ssl.JsseSslEngineFactory;
 import org.eclipse.jetty.security.ConstraintMapping;
 import org.eclipse.jetty.security.ConstraintSecurityHandler;
 import org.eclipse.jetty.security.HashLoginService;
@@ -25,31 +60,6 @@ import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.RxReactiveStreams;
 
-import javax.net.ssl.*;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.ServerSocket;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.security.*;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public class TestUtils {
 
     public static final String USER = "user";
@@ -69,10 +79,10 @@ public class TestUtils {
         try {
             TMP_DIR.mkdirs();
             TMP_DIR.deleteOnExit();
-            LARGE_IMAGE_FILE = new File(TestUtils.class.getClassLoader().getResource("300k.png").toURI());
+            LARGE_IMAGE_FILE = resourceAsFile("300k.png");
             LARGE_IMAGE_BYTES = FileUtils.readFileToByteArray(LARGE_IMAGE_FILE);
-            LARGE_IMAGE_PUBLISHER = createPublisher(LARGE_IMAGE_BYTES, /*chunkSize*/ 1000);
-            SIMPLE_TEXT_FILE = new File(TestUtils.class.getClassLoader().getResource("SimpleTextFile.txt").toURI());
+            LARGE_IMAGE_PUBLISHER = createPublisher(LARGE_IMAGE_BYTES, /* chunkSize */1000);
+            SIMPLE_TEXT_FILE = resourceAsFile("SimpleTextFile.txt");
             SIMPLE_TEXT_FILE_STRING = FileUtils.readFileToString(SIMPLE_TEXT_FILE, UTF_8);
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
@@ -82,6 +92,21 @@ public class TestUtils {
     public static synchronized int findFreePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
+        }
+    }
+
+    private static File resourceAsFile(String path) throws URISyntaxException, IOException {
+        ClassLoader cl = TestUtils.class.getClassLoader();
+        URI uri = cl.getResource(path).toURI();
+        if (uri.isAbsolute() && !uri.isOpaque()) {
+            return new File(uri);
+        } else {
+            File tmpFile = File.createTempFile("tmpfile-", ".data", TMP_DIR);
+            tmpFile.deleteOnExit();
+            try (InputStream is = cl.getResourceAsStream(path)) {
+                FileUtils.copyInputStreamToFile(is, tmpFile);
+                return tmpFile;
+            }
         }
     }
 
@@ -115,11 +140,11 @@ public class TestUtils {
             this.chunkSize = chunkSize;
         }
 
-
         @Override
         public Iterator<ByteBuffer> iterator() {
             return new Iterator<ByteBuffer>() {
                 private int currentIndex = 0;
+
                 @Override
                 public boolean hasNext() {
                     return currentIndex != payload.length;
@@ -154,21 +179,19 @@ public class TestUtils {
         server.addConnector(connector);
     }
 
-    public static Server newJettyHttpsServer(int port) throws URISyntaxException {
+    public static Server newJettyHttpsServer(int port) throws IOException, URISyntaxException {
         Server server = new Server();
         addHttpsConnector(server, port);
         return server;
     }
 
-    public static void addHttpsConnector(Server server, int port) throws URISyntaxException {
-        ClassLoader cl = TestUtils.class.getClassLoader();
+    public static void addHttpsConnector(Server server, int port) throws IOException, URISyntaxException {
 
-        URL keystoreUrl = cl.getResource("ssltest-keystore.jks");
-        String keyStoreFile = new File(keystoreUrl.toURI()).getAbsolutePath();
+        String keyStoreFile = resourceAsFile("ssltest-keystore.jks").getAbsolutePath();
         SslContextFactory sslContextFactory = new SslContextFactory(keyStoreFile);
         sslContextFactory.setKeyStorePassword("changeit");
 
-        String trustStoreFile = new File(cl.getResource("ssltest-cacerts.jks").toURI()).getAbsolutePath();
+        String trustStoreFile = resourceAsFile("ssltest-cacerts.jks").getAbsolutePath();
         sslContextFactory.setTrustStorePath(trustStoreFile);
         sslContextFactory.setTrustStorePassword("changeit");
 
@@ -220,11 +243,12 @@ public class TestUtils {
     }
 
     private static KeyManager[] createKeyManagers() throws GeneralSecurityException, IOException {
-        InputStream keyStoreStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ssltest-cacerts.jks");
-        char[] keyStorePassword = "changeit".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(keyStoreStream, keyStorePassword);
-        assert(ks.size() > 0);
+        try (InputStream keyStoreStream = TestUtils.class.getClassLoader().getResourceAsStream("ssltest-cacerts.jks")) {
+            char[] keyStorePassword = "changeit".toCharArray();
+            ks.load(keyStoreStream, keyStorePassword);
+        }
+        assert (ks.size() > 0);
 
         // Set up key manager factory to use our key store
         char[] certificatePassword = "changeit".toCharArray();
@@ -236,18 +260,20 @@ public class TestUtils {
     }
 
     private static TrustManager[] createTrustManagers() throws GeneralSecurityException, IOException {
-        InputStream keyStoreStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("ssltest-keystore.jks");
-        char[] keyStorePassword = "changeit".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(keyStoreStream, keyStorePassword);
-        assert(ks.size() > 0);
+        try (InputStream keyStoreStream = TestUtils.class.getClassLoader().getResourceAsStream("ssltest-keystore.jks")) {
+            char[] keyStorePassword = "changeit".toCharArray();
+            ks.load(keyStoreStream, keyStorePassword);
+        }
+        assert (ks.size() > 0);
 
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(ks);
         return tmf.getTrustManagers();
     }
 
-    public static SSLContext createSslContext(AtomicBoolean trust) {
+    public static SslEngineFactory createSslEngineFactory(AtomicBoolean trust) throws SSLException {
+
         try {
             KeyManager[] keyManagers = createKeyManagers();
             TrustManager[] trustManagers = new TrustManager[] { dummyTrustManager(trust, (X509TrustManager) createTrustManagers()[0]) };
@@ -256,9 +282,10 @@ public class TestUtils {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(keyManagers, trustManagers, secureRandom);
 
-            return sslContext;
+            return new JsseSslEngineFactory(sslContext);
+
         } catch (Exception e) {
-            throw new Error("Failed to initialize the server-side SSLContext", e);
+            throw new ExceptionInInitializerError(e);
         }
     }
 
@@ -273,14 +300,12 @@ public class TestUtils {
         }
 
         @Override
-        public void checkClientTrusted(X509Certificate[] chain, String authType)
-                throws CertificateException {
+        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
             tm.checkClientTrusted(chain, authType);
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] chain, String authType)
-                throws CertificateException {
+        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
             if (!trust.get()) {
                 throw new CertificateException("Server certificate not trusted.");
             }
