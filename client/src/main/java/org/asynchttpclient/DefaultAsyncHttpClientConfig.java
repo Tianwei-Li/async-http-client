@@ -31,18 +31,18 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 
-import org.asynchttpclient.channel.pool.KeepAliveStrategy;
+import org.asynchttpclient.channel.ChannelPool;
+import org.asynchttpclient.channel.DefaultKeepAliveStrategy;
+import org.asynchttpclient.channel.KeepAliveStrategy;
 import org.asynchttpclient.filter.IOExceptionFilter;
 import org.asynchttpclient.filter.RequestFilter;
 import org.asynchttpclient.filter.ResponseFilter;
-import org.asynchttpclient.netty.channel.pool.ChannelPool;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.proxy.ProxyServerSelector;
 import org.asynchttpclient.util.ProxyUtils;
 
 /**
- * Configuration class to use with a {@link AsyncHttpClient}. System property
- * can be also used to configure this object default behavior by doing: <br>
+ * Configuration class to use with a {@link AsyncHttpClient}. System property can be also used to configure this object default behavior by doing: <br>
  * -Dorg.asynchttpclient.nameOfTheProperty
  * 
  * @see AsyncHttpClientConfig for documentation
@@ -73,6 +73,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
     private final boolean disableZeroCopy;
     private final boolean keepEncodingHeader;
     private final ProxyServerSelector proxyServerSelector;
+    private final boolean validateResponseHeaders;
 
     // timeouts
     private final int connectTimeout;
@@ -117,6 +118,12 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
     private final Map<ChannelOption<Object>, Object> channelOptions;
     private final EventLoopGroup eventLoopGroup;
     private final boolean useNativeTransport;
+    private final boolean usePooledMemory;
+    private final boolean tcpNoDelay;
+    private final boolean soReuseAddress;
+    private final int soLinger;
+    private final int soSndBuf;
+    private final int soRcvBuf;
     private final Timer nettyTimer;
     private final ThreadFactory threadFactory;
     private final AdditionalChannelInitializer httpAdditionalChannelInitializer;
@@ -136,6 +143,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             boolean disableZeroCopy,//
             boolean keepEncodingHeader,//
             ProxyServerSelector proxyServerSelector,//
+            boolean validateResponseHeaders,//
 
             // timeouts
             int connectTimeout,//
@@ -169,6 +177,13 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             List<ResponseFilter> responseFilters,//
             List<IOExceptionFilter> ioExceptionFilters,//
 
+            // tuning
+            boolean tcpNoDelay,//
+            boolean soReuseAddress,//
+            int soLinger, //
+            int soSndBuf, //
+            int soRcvBuf, //
+
             // internals
             String threadPoolName,//
             int httpClientCodecMaxInitialLineLength,//
@@ -180,6 +195,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             Map<ChannelOption<Object>, Object> channelOptions,//
             EventLoopGroup eventLoopGroup,//
             boolean useNativeTransport,//
+            boolean usePooledMemory,//
             Timer nettyTimer,//
             ThreadFactory threadFactory,//
             AdditionalChannelInitializer httpAdditionalChannelInitializer,//
@@ -198,6 +214,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         this.disableZeroCopy = disableZeroCopy;
         this.keepEncodingHeader = keepEncodingHeader;
         this.proxyServerSelector = proxyServerSelector;
+        this.validateResponseHeaders = validateResponseHeaders;
 
         // timeouts
         this.connectTimeout = connectTimeout;
@@ -231,6 +248,13 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         this.responseFilters = responseFilters;
         this.ioExceptionFilters = ioExceptionFilters;
 
+        // tuning
+        this.tcpNoDelay = tcpNoDelay;
+        this.soReuseAddress = soReuseAddress;
+        this.soLinger = soLinger;
+        this.soSndBuf = soSndBuf;
+        this.soRcvBuf = soRcvBuf;
+
         // internals
         this.threadPoolName = threadPoolName;
         this.httpClientCodecMaxInitialLineLength = httpClientCodecMaxInitialLineLength;
@@ -242,6 +266,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         this.channelOptions = channelOptions;
         this.eventLoopGroup = eventLoopGroup;
         this.useNativeTransport = useNativeTransport;
+        this.usePooledMemory = usePooledMemory;
         this.nettyTimer = nettyTimer;
         this.threadFactory = threadFactory;
         this.httpAdditionalChannelInitializer = httpAdditionalChannelInitializer;
@@ -373,12 +398,17 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         return keepAliveStrategy;
     }
 
+    @Override
+    public boolean isValidateResponseHeaders() {
+        return validateResponseHeaders;
+    }
+
     // ssl
     @Override
     public boolean isUseOpenSsl() {
         return useOpenSsl;
     }
-    
+
     @Override
     public boolean isAcceptAnyCertificate() {
         return acceptAnyCertificate;
@@ -435,6 +465,32 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         return ioExceptionFilters;
     }
 
+    // tuning
+    @Override
+    public boolean isTcpNoDelay() {
+        return tcpNoDelay;
+    }
+
+    @Override
+    public boolean isSoReuseAddress() {
+        return soReuseAddress;
+    }
+
+    @Override
+    public int getSoLinger() {
+        return soLinger;
+    }
+
+    @Override
+    public int getSoSndBuf() {
+        return soSndBuf;
+    }
+
+    @Override
+    public int getSoRcvBuf() {
+        return soRcvBuf;
+    }
+
     // internals
     @Override
     public String getThreadPoolName() {
@@ -487,6 +543,11 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
     }
 
     @Override
+    public boolean isUsePooledMemory() {
+        return usePooledMemory;
+    }
+
+    @Override
     public Timer getNettyTimer() {
         return nettyTimer;
     }
@@ -530,6 +591,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         private ProxyServerSelector proxyServerSelector;
         private boolean useProxySelector = defaultUseProxySelector();
         private boolean useProxyProperties = defaultUseProxyProperties();
+        private boolean validateResponseHeaders = defaultValidateResponseHeaders();
 
         // timeouts
         private int connectTimeout = defaultConnectTimeout();
@@ -545,7 +607,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         private int maxConnections = defaultMaxConnections();
         private int maxConnectionsPerHost = defaultMaxConnectionsPerHost();
         private ChannelPool channelPool;
-        private KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.DefaultKeepAliveStrategy.INSTANCE;
+        private KeepAliveStrategy keepAliveStrategy = new DefaultKeepAliveStrategy();
 
         // ssl
         private boolean useOpenSsl = defaultUseOpenSsl();
@@ -563,6 +625,13 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         private final List<ResponseFilter> responseFilters = new LinkedList<>();
         private final List<IOExceptionFilter> ioExceptionFilters = new LinkedList<>();
 
+        // tuning
+        private boolean tcpNoDelay = defaultTcpNoDelay();
+        private boolean soReuseAddress = defaultSoReuseAddress();
+        private int soLinger = defaultSoLinger();
+        private int soSndBuf = defaultSoSndBuf();
+        private int soRcvBuf = defaultSoRcvBuf();
+
         // internals
         private String threadPoolName = defaultThreadPoolName();
         private int httpClientCodecMaxInitialLineLength = defaultHttpClientCodecMaxInitialLineLength();
@@ -572,6 +641,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
         private int webSocketMaxBufferSize = defaultWebSocketMaxBufferSize();
         private int webSocketMaxFrameSize = defaultWebSocketMaxFrameSize();
         private boolean useNativeTransport = defaultUseNativeTransport();
+        private boolean usePooledMemory = defaultUsePooledMemory();
         private Map<ChannelOption<Object>, Object> channelOptions = new HashMap<>();
         private EventLoopGroup eventLoopGroup;
         private Timer nettyTimer;
@@ -628,6 +698,13 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             responseFilters.addAll(config.getResponseFilters());
             ioExceptionFilters.addAll(config.getIoExceptionFilters());
 
+            // tuning
+            tcpNoDelay = config.isTcpNoDelay();
+            soReuseAddress = config.isSoReuseAddress();
+            soLinger = config.getSoLinger();
+            soSndBuf = config.getSoSndBuf();
+            soRcvBuf = config.getSoRcvBuf();
+
             // internals
             threadPoolName = config.getThreadPoolName();
             httpClientCodecMaxInitialLineLength = config.getHttpClientCodecMaxInitialLineLength();
@@ -639,6 +716,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             channelOptions.putAll(config.getChannelOptions());
             eventLoopGroup = config.getEventLoopGroup();
             useNativeTransport = config.isUseNativeTransport();
+            usePooledMemory = config.isUsePooledMemory();
             nettyTimer = config.getNettyTimer();
             threadFactory = config.getThreadFactory();
             httpAdditionalChannelInitializer = config.getHttpAdditionalChannelInitializer();
@@ -676,7 +754,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             this.realm = realm;
             return this;
         }
-        
+
         public Builder setRealm(Realm.Builder realmBuilder) {
             this.realm = realmBuilder.build();
             return this;
@@ -707,11 +785,16 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             return this;
         }
 
+        public Builder setValidateResponseHeaders(boolean validateResponseHeaders) {
+            this.validateResponseHeaders = validateResponseHeaders;
+            return this;
+        }
+
         public Builder setProxyServer(ProxyServer proxyServer) {
             this.proxyServerSelector = ProxyUtils.createProxyServerSelector(proxyServer);
             return this;
         }
-        
+
         public Builder setProxyServer(ProxyServer.Builder proxyServerBuilder) {
             this.proxyServerSelector = ProxyUtils.createProxyServerSelector(proxyServerBuilder.build());
             return this;
@@ -866,6 +949,32 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
             return this;
         }
 
+        // tuning
+        public Builder setTcpNoDelay(boolean tcpNoDelay) {
+            this.tcpNoDelay = tcpNoDelay;
+            return this;
+        }
+
+        public Builder setSoReuseAddress(boolean soReuseAddress) {
+            this.soReuseAddress = soReuseAddress;
+            return this;
+        }
+
+        public Builder setSoLinger(int soLinger) {
+            this.soLinger = soLinger;
+            return this;
+        }
+
+        public Builder setSoSndBuf(int soSndBuf) {
+            this.soSndBuf = soSndBuf;
+            return this;
+        }
+
+        public Builder setSoRcvBuf(int soRcvBuf) {
+            this.soRcvBuf = soRcvBuf;
+            return this;
+        }
+
         // internals
         public Builder setThreadPoolName(String threadPoolName) {
             this.threadPoolName = threadPoolName;
@@ -915,6 +1024,11 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
 
         public Builder setUseNativeTransport(boolean useNativeTransport) {
             this.useNativeTransport = useNativeTransport;
+            return this;
+        }
+
+        public Builder setUsePooledMemory(boolean usePooledMemory) {
+            this.usePooledMemory = usePooledMemory;
             return this;
         }
 
@@ -970,6 +1084,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
                     disableZeroCopy, //
                     keepEncodingHeader, //
                     resolveProxyServerSelector(), //
+                    validateResponseHeaders, //
                     connectTimeout, //
                     requestTimeout, //
                     readTimeout, //
@@ -994,6 +1109,11 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
                     requestFilters.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(requestFilters), //
                     responseFilters.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(responseFilters),//
                     ioExceptionFilters.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(ioExceptionFilters),//
+                    tcpNoDelay, //
+                    soReuseAddress, //
+                    soLinger, //
+                    soSndBuf, //
+                    soRcvBuf, //
                     threadPoolName, //
                     httpClientCodecMaxInitialLineLength, //
                     httpClientCodecMaxHeaderSize, //
@@ -1004,6 +1124,7 @@ public class DefaultAsyncHttpClientConfig implements AsyncHttpClientConfig {
                     channelOptions.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(channelOptions),//
                     eventLoopGroup, //
                     useNativeTransport, //
+                    usePooledMemory, //
                     nettyTimer, //
                     threadFactory, //
                     httpAdditionalChannelInitializer, //

@@ -1,7 +1,7 @@
 package org.asynchttpclient.test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,8 +36,15 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
+import org.asynchttpclient.AsyncCompletionHandler;
+import org.asynchttpclient.AsyncHandler;
+import org.asynchttpclient.HttpResponseBodyPart;
+import org.asynchttpclient.HttpResponseHeaders;
+import org.asynchttpclient.HttpResponseStatus;
+import org.asynchttpclient.Response;
 import org.asynchttpclient.SslEngineFactory;
 import org.asynchttpclient.netty.ssl.JsseSslEngineFactory;
 import org.eclipse.jetty.security.ConstraintMapping;
@@ -62,10 +70,11 @@ import rx.RxReactiveStreams;
 
 public class TestUtils {
 
+    public final static int TIMEOUT = 30;
     public static final String USER = "user";
     public static final String ADMIN = "admin";
-    public static final String TEXT_HTML_CONTENT_TYPE_WITH_UTF_8_CHARSET = "text/html; charset=UTF-8";
-    public static final String TEXT_HTML_CONTENT_TYPE_WITH_ISO_8859_1_CHARSET = "text/html; charset=ISO-8859-1";
+    public static final String TEXT_HTML_CONTENT_TYPE_WITH_UTF_8_CHARSET = "text/html;charset=UTF-8";
+    public static final String TEXT_HTML_CONTENT_TYPE_WITH_ISO_8859_1_CHARSET = "text/html;charset=ISO-8859-1";
     public static final File TMP_DIR = new File(System.getProperty("java.io.tmpdir"), "ahc-tests-" + UUID.randomUUID().toString().substring(0, 8));
     public static final byte[] PATTERN_BYTES = "FooBarBazQixFooBarBazQixFooBarBazQixFooBarBazQixFooBarBazQixFooBarBazQix".getBytes(Charset.forName("UTF-16"));
     public static final File LARGE_IMAGE_FILE;
@@ -175,7 +184,6 @@ public class TestUtils {
     public static void addHttpConnector(Server server, int port) {
         ServerConnector connector = new ServerConnector(server);
         connector.setPort(port);
-
         server.addConnector(connector);
     }
 
@@ -271,6 +279,10 @@ public class TestUtils {
         tmf.init(ks);
         return tmf.getTrustManagers();
     }
+    
+    public static SslEngineFactory createSslEngineFactory() throws SSLException {
+        return createSslEngineFactory(new AtomicBoolean(true));
+    }
 
     public static SslEngineFactory createSslEngineFactory(AtomicBoolean trust) throws SSLException {
 
@@ -338,6 +350,64 @@ public class TestUtils {
             return new File(new URI(resourceUrl.toString()).getSchemeSpecificPart());
         } catch (URISyntaxException e) {
             throw new FileNotFoundException(file);
+        }
+    }
+
+    public static void assertContentTypesEquals(String actual, String expected) {
+        assertEquals(actual.replace("; ", "").toLowerCase(Locale.ENGLISH), expected.replace("; ", "").toLowerCase(Locale.ENGLISH), "Unexpected content-type");
+    }
+
+    public static String getLocalhostIp() {
+        return "127.0.0.1";
+    }
+
+    public static class AsyncCompletionHandlerAdapter extends AsyncCompletionHandler<Response> {
+
+        @Override
+        public Response onCompleted(Response response) throws Exception {
+            return response;
+        }
+
+        @Override
+        public void onThrowable(Throwable t) {
+            fail("Unexpected exception: " + t.getMessage(), t);
+        }
+    }
+
+    public static class AsyncHandlerAdapter implements AsyncHandler<String> {
+
+        @Override
+        public void onThrowable(Throwable t) {
+            fail("Unexpected exception", t);
+        }
+
+        @Override
+        public State onBodyPartReceived(final HttpResponseBodyPart content) throws Exception {
+            return State.CONTINUE;
+        }
+
+        @Override
+        public State onStatusReceived(final HttpResponseStatus responseStatus) throws Exception {
+            return State.CONTINUE;
+        }
+
+        @Override
+        public State onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
+            return State.CONTINUE;
+        }
+
+        @Override
+        public String onCompleted() throws Exception {
+            return "";
+        }
+    }
+
+    public static void writeResponseBody(HttpServletResponse response, String body) {
+        response.setContentLength(body.length());
+        try {
+            response.getOutputStream().print(body);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

@@ -12,6 +12,9 @@
  */
 package org.asynchttpclient.request.body.multipart;
 
+import static org.asynchttpclient.util.MiscUtils.withDefault;
+import static io.netty.handler.codec.http.HttpHeaders.Values.*;
+
 import java.nio.charset.Charset;
 
 /**
@@ -23,11 +26,6 @@ public abstract class FileLikePart extends PartBase {
      * Default content encoding of file attachments.
      */
     public static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
-
-    /**
-     * Default transfer encoding of file attachments.
-     */
-    public static final String DEFAULT_TRANSFER_ENCODING = "binary";
 
     private String fileName;
 
@@ -42,13 +40,13 @@ public abstract class FileLikePart extends PartBase {
      */
     public FileLikePart(String name, String contentType, Charset charset, String contentId, String transfertEncoding) {
         super(name,//
-                contentType == null ? DEFAULT_CONTENT_TYPE : contentType,//
+                withDefault(contentType, DEFAULT_CONTENT_TYPE),//
                 charset,//
                 contentId,//
-                transfertEncoding == null ? DEFAULT_TRANSFER_ENCODING : transfertEncoding);
+                withDefault(transfertEncoding, BINARY));
     }
 
-    public void setFileName(String fileName) {
+    public final void setFileName(String fileName) {
         this.fileName = fileName;
     }
 

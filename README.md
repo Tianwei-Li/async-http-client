@@ -1,4 +1,4 @@
-Async Http Client ([@AsyncHttpClient](https://twitter.com/AsyncHttpClient) on twitter)
+Async Http Client ([@AsyncHttpClient](https://twitter.com/AsyncHttpClient) on twitter) [![Build Status](https://travis-ci.org/AsyncHttpClient/async-http-client.svg?branch=master)](https://travis-ci.org/AsyncHttpClient/async-http-client)
 ---------------------------------------------------
 
 [Javadoc](http://www.javadoc.io/doc/com.ning/async-http-client/)
@@ -16,7 +16,7 @@ First, in order to add it to your Maven project, simply add this dependency:
 <dependency>
   <groupId>com.ning</groupId>
   <artifactId>async-http-client</artifactId>
-  <version>1.9.31</version>
+  <version>1.9.33</version>
 </dependency>
 ```
 
@@ -179,7 +179,7 @@ Finally, you can also configure the AsyncHttpClient via its AsyncHttpClientConfi
 
 ```java
 AsyncHttpClientConfig cf = new AsyncHttpClientConfig.Builder()
-    S.setProxyServer(new ProxyServer("127.0.0.1", 38080)).build();
+    .setProxyServer(new ProxyServer("127.0.0.1", 38080)).build();
 AsyncHttpClient c = new AsyncHttpClient(cf);
 ```
 

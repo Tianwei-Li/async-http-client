@@ -13,6 +13,7 @@
 package org.asynchttpclient.uri;
 
 import static org.asynchttpclient.util.Assertions.*;
+import static org.asynchttpclient.util.MiscUtils.*;
 
 final class UriParser {
 
@@ -85,7 +86,7 @@ final class UriParser {
 
             // see RFC2396 5.2.3
             String contextPath = context.getPath();
-            if (isNotEmpty(contextPath) && contextPath.charAt(0) == '/')
+            if (isNonEmpty(contextPath) && contextPath.charAt(0) == '/')
               scheme = null;
 
             if (scheme == null) {
@@ -242,7 +243,7 @@ final class UriParser {
             path = path.substring(0, path.length() - 1);
     }
 
-    private void initRelativePath() {
+    private void handleRelativePath() {
         int lastSlashPosition = path.lastIndexOf('/');
         String pathEnd = urlWithoutQuery.substring(start, end);
 
@@ -280,27 +281,23 @@ final class UriParser {
                 throw new IllegalArgumentException("Invalid port number :" + port);
 
             // see RFC2396 5.2.4: ignore context path if authority is defined
-            if (isNotEmpty(authority))
+            if (isNonEmpty(authority))
                 path = "";
         }
-    }
-
-    private void handleRelativePath() {
-        initRelativePath();
-        handlePathDots();
     }
 
     private void computeRegularPath() {
         if (urlWithoutQuery.charAt(start) == '/')
             path = urlWithoutQuery.substring(start, end);
 
-        else if (isNotEmpty(path))
+        else if (isNonEmpty(path))
             handleRelativePath();
 
         else {
             String pathEnd = urlWithoutQuery.substring(start, end);
             path = authority != null ? "/" + pathEnd : pathEnd;
         }
+        handlePathDots();
     }
 
     private void computeQueryOnlyPath() {
@@ -335,9 +332,5 @@ final class UriParser {
         boolean queryOnly = splitUrlAndQuery(originalUrl);
         parseAuthority();
         computePath(queryOnly);
-    }
-
-    private static boolean isNotEmpty(String string) {
-        return string != null && string.length() > 0;
     }
 }

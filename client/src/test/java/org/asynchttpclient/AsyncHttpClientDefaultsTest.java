@@ -9,7 +9,7 @@ import org.testng.annotations.Test;
 
 import java.lang.reflect.Method;
 
-@Test(groups = "standalone")
+@Test
 public class AsyncHttpClientDefaultsTest {
 
     public void testDefaultMaxTotalConnections() {
@@ -63,7 +63,7 @@ public class AsyncHttpClientDefaultsTest {
     }
 
     public void testDefaultUserAgent() {
-        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultUserAgent(), "NING/1.0");
+        Assert.assertEquals(AsyncHttpClientConfigDefaults.defaultUserAgent(), "AHC/2.0");
         testStringSystemProperty("userAgent", "defaultUserAgent", "MyAHC");
     }
 

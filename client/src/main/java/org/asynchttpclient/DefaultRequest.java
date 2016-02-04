@@ -15,6 +15,7 @@ package org.asynchttpclient;
 
 import static org.asynchttpclient.util.MiscUtils.isNonEmpty;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.resolver.NameResolver;
 
 import java.io.File;
 import java.io.InputStream;
@@ -26,8 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.asynchttpclient.channel.NameResolver;
-import org.asynchttpclient.channel.pool.ConnectionPoolPartitioning;
+import org.asynchttpclient.channel.ChannelPoolPartitioning;
 import org.asynchttpclient.cookie.Cookie;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.request.body.generator.BodyGenerator;
@@ -59,8 +59,8 @@ public class DefaultRequest implements Request {
     private final int requestTimeout;
     private final long rangeOffset;
     private final Charset charset;
-    private final ConnectionPoolPartitioning connectionPoolPartitioning;
-    private final NameResolver nameResolver;
+    private final ChannelPoolPartitioning channelPoolPartitioning;
+    private final NameResolver<InetAddress> nameResolver;
     // lazily loaded
     private List<Param> queryParams;
 
@@ -87,8 +87,8 @@ public class DefaultRequest implements Request {
             int requestTimeout,//
             long rangeOffset,//
             Charset charset,//
-            ConnectionPoolPartitioning connectionPoolPartitioning,//
-            NameResolver nameResolver) {
+            ChannelPoolPartitioning channelPoolPartitioning,//
+            NameResolver<InetAddress> nameResolver) {
         this.method = method;
         this.uri = uri;
         this.address = address;
@@ -112,7 +112,7 @@ public class DefaultRequest implements Request {
         this.requestTimeout = requestTimeout;
         this.rangeOffset = rangeOffset;
         this.charset = charset;
-        this.connectionPoolPartitioning = connectionPoolPartitioning;
+        this.channelPoolPartitioning = channelPoolPartitioning;
         this.nameResolver = nameResolver;
     }
 
@@ -237,12 +237,12 @@ public class DefaultRequest implements Request {
     }
 
     @Override
-    public ConnectionPoolPartitioning getConnectionPoolPartitioning() {
-        return connectionPoolPartitioning;
+    public ChannelPoolPartitioning getChannelPoolPartitioning() {
+        return channelPoolPartitioning;
     }
 
     @Override
-    public NameResolver getNameResolver() {
+    public NameResolver<InetAddress> getNameResolver() {
         return nameResolver;
     }
 

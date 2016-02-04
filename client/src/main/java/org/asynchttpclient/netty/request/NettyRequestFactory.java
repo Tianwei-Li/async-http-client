@@ -13,25 +13,10 @@
  */
 package org.asynchttpclient.netty.request;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT_ENCODING;
-import static io.netty.handler.codec.http.HttpHeaders.Names.AUTHORIZATION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.HOST;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
-import static io.netty.handler.codec.http.HttpHeaders.Names.PROXY_AUTHORIZATION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.SEC_WEBSOCKET_KEY;
-import static io.netty.handler.codec.http.HttpHeaders.Names.SEC_WEBSOCKET_VERSION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.TRANSFER_ENCODING;
-import static io.netty.handler.codec.http.HttpHeaders.Names.UPGRADE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
+import static io.netty.handler.codec.http.HttpHeaders.Names.*;
+import static org.asynchttpclient.util.AuthenticatorUtils.*;
 import static org.asynchttpclient.util.HttpUtils.*;
-import static org.asynchttpclient.util.AuthenticatorUtils.perRequestAuthorizationHeader;
-import static org.asynchttpclient.util.AuthenticatorUtils.perRequestProxyAuthorizationHeader;
-import static org.asynchttpclient.util.MiscUtils.isNonEmpty;
+import static org.asynchttpclient.util.MiscUtils.*;
 import static org.asynchttpclient.ws.WebSocketUtils.getKey;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -67,7 +52,7 @@ import org.asynchttpclient.util.StringUtils;
 public final class NettyRequestFactory {
 
     public static final String GZIP_DEFLATE = HttpHeaders.Values.GZIP + "," + HttpHeaders.Values.DEFLATE;
-    
+
     private final AsyncHttpClientConfig config;
 
     public NettyRequestFactory(AsyncHttpClientConfig config) {
@@ -78,7 +63,7 @@ public final class NettyRequestFactory {
         NettyBody nettyBody = null;
         if (!connect) {
 
-            Charset bodyCharset = request.getCharset() == null ? DEFAULT_CHARSET : request.getCharset();
+            Charset bodyCharset = withDefault(request.getCharset(), DEFAULT_CHARSET);
 
             if (request.getByteData() != null)
                 nettyBody = new NettyByteArrayBody(request.getByteData());
@@ -141,9 +126,7 @@ public final class NettyRequestFactory {
         HttpMethod method = forceConnect ? HttpMethod.CONNECT : HttpMethod.valueOf(request.getMethod());
         boolean connect = method == HttpMethod.CONNECT;
 
-        boolean allowConnectionPooling = config.isKeepAlive();
-
-        HttpVersion httpVersion = !allowConnectionPooling || (connect && proxyServer.isForceHttp10()) ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
+        HttpVersion httpVersion = HttpVersion.HTTP_1_1;
         String requestUri = requestUri(uri, proxyServer, connect);
 
         NettyBody body = body(request, connect);
@@ -170,7 +153,7 @@ public final class NettyRequestFactory {
         if (connect) {
             // assign proxy-auth as configured on request
             headers.set(PROXY_AUTHORIZATION, request.getHeaders().getAll(PROXY_AUTHORIZATION));
-        
+
         } else {
             // assign headers as configured on request
             headers.set(request.getHeaders());
@@ -201,7 +184,7 @@ public final class NettyRequestFactory {
                     .set(SEC_WEBSOCKET_VERSION, "13");
 
         } else if (!headers.contains(CONNECTION)) {
-            String connectionHeaderValue = connectionHeader(allowConnectionPooling, httpVersion == HttpVersion.HTTP_1_1);
+            String connectionHeaderValue = connectionHeader(config.isKeepAlive(), httpVersion);
             if (connectionHeaderValue != null)
                 headers.set(CONNECTION, connectionHeaderValue);
         }
@@ -223,7 +206,7 @@ public final class NettyRequestFactory {
 
         return nettyRequest;
     }
-    
+
     private String requestUri(Uri uri, ProxyServer proxyServer, boolean connect) {
         if (connect)
             // proxy tunnelling, connect need host and explicit port
@@ -243,12 +226,11 @@ public final class NettyRequestFactory {
         }
     }
 
-    private String connectionHeader(boolean allowConnectionPooling, boolean http11) {
-        if (allowConnectionPooling)
-            return HttpHeaders.Values.KEEP_ALIVE;
-        else if (http11)
-            return HttpHeaders.Values.CLOSE;
-        else
-            return null;
+    private String connectionHeader(boolean keepAlive, HttpVersion httpVersion) {
+        if (httpVersion.isKeepAliveDefault()) {
+            return keepAlive ? null : HttpHeaders.Values.CLOSE;
+        } else {
+            return keepAlive ? HttpHeaders.Values.KEEP_ALIVE : null;
+        }
     }
 }

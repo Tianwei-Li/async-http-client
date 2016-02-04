@@ -19,6 +19,9 @@ import static org.asynchttpclient.util.HttpUtils.*;
 import static org.asynchttpclient.util.MiscUtils.isNonEmpty;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.resolver.DefaultNameResolver;
+import io.netty.resolver.NameResolver;
+import io.netty.util.concurrent.ImmediateEventExecutor;
 
 import java.io.File;
 import java.io.InputStream;
@@ -31,8 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.asynchttpclient.channel.NameResolver;
-import org.asynchttpclient.channel.pool.ConnectionPoolPartitioning;
+import org.asynchttpclient.channel.ChannelPoolPartitioning;
 import org.asynchttpclient.cookie.Cookie;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.request.body.generator.BodyGenerator;
@@ -50,6 +52,8 @@ import org.slf4j.LoggerFactory;
  * @param <T> the builder type
  */
 public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
+    
+    public static NameResolver<InetAddress> DEFAULT_NAME_RESOLVER = new DefaultNameResolver(ImmediateEventExecutor.INSTANCE);
 
     private final static Logger LOGGER = LoggerFactory.getLogger(RequestBuilderBase.class);
 
@@ -65,7 +69,7 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
     protected Uri uri;
     protected InetAddress address;
     protected InetAddress localAddress;
-    protected HttpHeaders headers = new DefaultHttpHeaders();
+    protected HttpHeaders headers;
     protected ArrayList<Cookie> cookies;
     protected byte[] byteData;
     protected List<byte[]> compositeByteData;
@@ -84,24 +88,30 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
     protected int requestTimeout;
     protected long rangeOffset;
     protected Charset charset;
-    protected ConnectionPoolPartitioning connectionPoolPartitioning = ConnectionPoolPartitioning.PerHostConnectionPoolPartitioning.INSTANCE;
-    protected NameResolver nameResolver = NameResolver.JdkNameResolver.INSTANCE;
+    protected ChannelPoolPartitioning channelPoolPartitioning = ChannelPoolPartitioning.PerHostChannelPoolPartitioning.INSTANCE;
+    protected NameResolver<InetAddress> nameResolver = DEFAULT_NAME_RESOLVER;
 
     protected RequestBuilderBase(String method, boolean disableUrlEncoding) {
+        this(method, disableUrlEncoding, true);
+    }
+
+    protected RequestBuilderBase(String method, boolean disableUrlEncoding, boolean validateHeaders) {
         this.method = method;
         this.uriEncoder = UriEncoder.uriEncoder(disableUrlEncoding);
+        this.headers = new DefaultHttpHeaders(validateHeaders);
     }
 
     protected RequestBuilderBase(Request prototype) {
-        this(prototype, false);
+        this(prototype, false, false);
     }
 
-    protected RequestBuilderBase(Request prototype, boolean disableUrlEncoding) {
+    protected RequestBuilderBase(Request prototype, boolean disableUrlEncoding, boolean validateHeaders) {
         this.method = prototype.getMethod();
         this.uriEncoder = UriEncoder.uriEncoder(disableUrlEncoding);
         this.uri = prototype.getUri();
         this.address = prototype.getAddress();
         this.localAddress = prototype.getLocalAddress();
+        this.headers = new DefaultHttpHeaders(validateHeaders);
         this.headers.add(prototype.getHeaders());
         if (isNonEmpty(prototype.getCookies())) {
             this.cookies = new ArrayList<>(prototype.getCookies());
@@ -127,7 +137,7 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
         this.requestTimeout = prototype.getRequestTimeout();
         this.rangeOffset = prototype.getRangeOffset();
         this.charset = prototype.getCharset();
-        this.connectionPoolPartitioning = prototype.getConnectionPoolPartitioning();
+        this.channelPoolPartitioning = prototype.getChannelPoolPartitioning();
         this.nameResolver = prototype.getNameResolver();
     }
 
@@ -176,12 +186,15 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
     }
 
     public T setHeaders(HttpHeaders headers) {
-        this.headers = headers == null ? new DefaultHttpHeaders() : headers;
+        if (headers == null)
+            this.headers.clear();
+        else
+            this.headers = headers;
         return asDerivedType();
     }
 
     public T setHeaders(Map<String, Collection<String>> headers) {
-        this.headers = new DefaultHttpHeaders();
+        this.headers.clear();
         if (headers != null) {
             for (Map.Entry<String, Collection<String>> entry : headers.entrySet()) {
                 String headerName = entry.getKey();
@@ -375,7 +388,7 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
         this.proxyServer = proxyServer;
         return asDerivedType();
     }
-    
+
     public T setProxyServer(ProxyServer.Builder proxyServerBuilder) {
         this.proxyServer = proxyServerBuilder.build();
         return asDerivedType();
@@ -411,12 +424,12 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
         return asDerivedType();
     }
 
-    public T setConnectionPoolPartitioning(ConnectionPoolPartitioning connectionPoolPartitioning) {
-        this.connectionPoolPartitioning = connectionPoolPartitioning;
+    public T setChannelPoolPartitioning(ChannelPoolPartitioning channelPoolPartitioning) {
+        this.channelPoolPartitioning = channelPoolPartitioning;
         return asDerivedType();
     }
 
-    public T setNameResolver(NameResolver nameResolver) {
+    public T setNameResolver(NameResolver<InetAddress> nameResolver) {
         this.nameResolver = nameResolver;
         return asDerivedType();
     }
@@ -466,7 +479,7 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
         rb.requestTimeout = this.requestTimeout;
         rb.rangeOffset = this.rangeOffset;
         rb.charset = this.charset;
-        rb.connectionPoolPartitioning = this.connectionPoolPartitioning;
+        rb.channelPoolPartitioning = this.channelPoolPartitioning;
         rb.nameResolver = this.nameResolver;
         Request unsignedRequest = rb.build();
         signatureCalculator.calculateAndAddSignature(unsignedRequest, rb);
@@ -528,12 +541,12 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
         Uri finalUri = rb.computeUri();
         Charset finalCharset = rb.computeCharset();
         long finalContentLength = rb.computeRequestContentLength();
-        
+
         // make copies of mutable internal collections
         List<Cookie> cookiesCopy = rb.cookies == null ? Collections.emptyList() : new ArrayList<>(rb.cookies);
         List<Param> formParamsCopy = rb.formParams == null ? Collections.emptyList() : new ArrayList<>(rb.formParams);
         List<Part> bodyPartsCopy = rb.bodyParts == null ? Collections.emptyList() : new ArrayList<>(rb.bodyParts);
-        
+
         return new DefaultRequest(rb.method,//
                 finalUri,//
                 rb.address,//
@@ -557,7 +570,7 @@ public abstract class RequestBuilderBase<T extends RequestBuilderBase<T>> {
                 rb.requestTimeout,//
                 rb.rangeOffset,//
                 finalCharset,//
-                rb.connectionPoolPartitioning,//
+                rb.channelPoolPartitioning,//
                 rb.nameResolver);
     }
 }

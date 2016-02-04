@@ -47,8 +47,8 @@ public class MiscUtils {
         return systemPropValue != null ? systemPropValue.equalsIgnoreCase("true") : defaultValue;
     }
 
-    public static <T> T withDefault(T value, T defaults) {
-        return value != null ? value : value;
+    public static <T> T withDefault(T value, T def) {
+        return value == null ? def : value;
     }
 
     public static void closeSilently(Closeable closeable) {
@@ -59,9 +59,13 @@ public class MiscUtils {
             }
     }
 
-    public static IOException buildStaticIOException(String message) {
-        IOException ioe = new IOException(message);
-        ioe.setStackTrace(new StackTraceElement[] {});
-        return ioe;
+    public static <T extends Exception> T trimStackTrace(T e) {
+        e.setStackTrace(new StackTraceElement[] {});
+        return e;
+    }
+
+    public static Throwable getCause(Throwable t) {
+        Throwable cause = t.getCause();
+        return cause != null ? getCause(cause) : t;
     }
 }
